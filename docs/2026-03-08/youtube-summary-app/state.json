@@ -6,7 +6,7 @@
   },
   "plan_approved": true,
   "team_name": "twinkly-tickling-karp",
-  "current_dev_phase": 1,
+  "current_dev_phase": 2,
   "current_step": 2,
   "dev_phases": {
     "1": {
@@ -32,12 +32,12 @@
         "1": {
           "title": "Gemini Service + Endpoints + Tests",
           "doc_path": "docs/2026-03-08/youtube-summary-app/phase-2-backend-ai-deploy/step-1.md",
-          "test_defined": false
+          "test_defined": true
         },
         "2": {
           "title": "Deploy Script + Systemd Service",
           "doc_path": "docs/2026-03-08/youtube-summary-app/phase-2-backend-ai-deploy/step-2.md",
-          "test_defined": false
+          "test_defined": true
         }
       }
     },

@@ -1,6 +1,15 @@
 from fastapi import APIRouter, HTTPException
 
-from models.schemas import TranscriptRequest, TranscriptResponse, TranscriptSegment
+from models.schemas import (
+    ChatRequest,
+    ChatResponse,
+    SummarizeRequest,
+    SummarizeResponse,
+    TranscriptRequest,
+    TranscriptResponse,
+    TranscriptSegment,
+)
+from services.gemini_service import chat_about_video, summarize_transcript
 from services.transcript_service import extract_video_id, get_transcript, get_video_title
 
 router = APIRouter()
@@ -26,3 +35,25 @@ async def transcript(request: TranscriptRequest):
         transcript=[TranscriptSegment(**seg) for seg in segments],
         full_text=full_text,
     )
+
+
+@router.post("/summarize", response_model=SummarizeResponse)
+async def summarize(request: SummarizeRequest):
+    try:
+        summary = summarize_transcript(request.title, request.full_text, request.language)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Summarization failed: {str(e)}")
+
+    return SummarizeResponse(video_id=request.video_id, summary=summary)
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    messages = [{"role": msg.role, "content": msg.content} for msg in request.messages]
+
+    try:
+        reply = chat_about_video(request.title, request.full_text, messages, request.language)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+    return ChatResponse(video_id=request.video_id, reply=reply)
