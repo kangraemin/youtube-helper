@@ -86,7 +86,7 @@ class _SummaryDetailScreenState extends ConsumerState<SummaryDetailScreen>
             child: Image.network(
               summary.thumbnailUrl,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (context, error, stackTrace) => Container(
                 color: theme.colorScheme.surfaceContainerHighest,
                 child: const Icon(Icons.broken_image, size: 48),
               ),

@@ -1,6 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'package:youtube_helper/core/constants/api_constants.dart';
 import 'package:youtube_helper/features/summarize/domain/entities/video_summary.dart';
 import 'package:youtube_helper/features/summarize/domain/entities/chat_message.dart';
 import 'package:youtube_helper/features/summarize/infrastructure/api_service.dart';

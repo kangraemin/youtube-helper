@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_helper/features/summarize/domain/entities/video_summary.dart';
+import 'package:youtube_helper/features/summarize/infrastructure/storage_service.dart';
 import 'package:youtube_helper/features/summarize/application/summary_provider.dart';
 
 final historyProvider =
