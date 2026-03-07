@@ -6,9 +6,14 @@ import 'package:youtube_helper/app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  await Hive.openBox('settings');
-  await Hive.openBox('history');
+
+  try {
+    await Hive.initFlutter();
+    await Hive.openBox('settings');
+    await Hive.openBox('history');
+  } catch (e) {
+    debugPrint('Hive init error: $e');
+  }
 
   runApp(
     const ProviderScope(
