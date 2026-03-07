@@ -1,0 +1,93 @@
+{
+  "workflow_phase": "development",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "twinkly-tickling-karp",
+  "current_dev_phase": 1,
+  "current_step": 2,
+  "dev_phases": {
+    "1": {
+      "name": "backend-foundation",
+      "folder": "phase-1-backend-foundation",
+      "steps": {
+        "1": {
+          "title": "Models + Transcript Service + Requirements",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-1-backend-foundation/step-1.md",
+          "test_defined": true
+        },
+        "2": {
+          "title": "Router + Main + Tests",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-1-backend-foundation/step-2.md",
+          "test_defined": true
+        }
+      }
+    },
+    "2": {
+      "name": "backend-ai-deploy",
+      "folder": "phase-2-backend-ai-deploy",
+      "steps": {
+        "1": {
+          "title": "Gemini Service + Endpoints + Tests",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-2-backend-ai-deploy/step-1.md",
+          "test_defined": false
+        },
+        "2": {
+          "title": "Deploy Script + Systemd Service",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-2-backend-ai-deploy/step-2.md",
+          "test_defined": false
+        }
+      }
+    },
+    "3": {
+      "name": "flutter-foundation",
+      "folder": "phase-3-flutter-foundation",
+      "steps": {
+        "1": {
+          "title": "Project setup + pubspec + theme + router",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-3-flutter-foundation/step-1.md",
+          "test_defined": true
+        },
+        "2": {
+          "title": "Domain entities + services",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-3-flutter-foundation/step-2.md",
+          "test_defined": true
+        },
+        "3": {
+          "title": "Home screen + widgets + bottom nav",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-3-flutter-foundation/step-3.md",
+          "test_defined": true
+        }
+      }
+    },
+    "4": {
+      "name": "flutter-features",
+      "folder": "phase-4-flutter-features",
+      "steps": {
+        "1": {
+          "title": "Summary detail + transcript view",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-4-flutter-features/step-1.md",
+          "test_defined": true
+        },
+        "2": {
+          "title": "History screen + chat bubble",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-4-flutter-features/step-2.md",
+          "test_defined": true
+        },
+        "3": {
+          "title": "Settings screen + navigation",
+          "doc_path": "docs/2026-03-08/youtube-summary-app/phase-4-flutter-features/step-3.md",
+          "test_defined": true
+        }
+      }
+    }
+  },
+  "verification": {
+    "rounds_passed": 0
+  },
+  "task_dir": "/Users/ram/programming/vibecoding/youtube_helper/docs/2026-03-08/youtube-summary-app",
+  "active_file": "/Users/ram/programming/vibecoding/youtube_helper/docs/2026-03-08/youtube-summary-app/.active",
+  "persistent_mode": false
+}
