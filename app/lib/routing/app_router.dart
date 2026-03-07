@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import 'package:youtube_helper/features/summarize/presentation/home_screen.dart';
 import 'package:youtube_helper/features/summarize/presentation/summary_detail_screen.dart';
+import 'package:youtube_helper/features/history/presentation/history_screen.dart';
+import 'package:youtube_helper/features/settings/presentation/settings_screen.dart';
 import 'package:youtube_helper/routing/shell_scaffold.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -26,20 +28,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/history',
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: Scaffold(
-                appBar: AppBar(title: const Text('히스토리')),
-                body: const Center(child: Text('히스토리')),
-              ),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: HistoryScreen(),
             ),
           ),
           GoRoute(
             path: '/settings',
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: Scaffold(
-                appBar: AppBar(title: const Text('설정')),
-                body: const Center(child: Text('설정')),
-              ),
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: SettingsScreen(),
             ),
           ),
         ],
