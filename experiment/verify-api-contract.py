@@ -391,6 +391,16 @@ def find_file(project_dir: str, patterns: list[str]) -> str | None:
     return None
 
 
+def find_all_files(project_dir: str, patterns: list[str]) -> list[str]:
+    """여러 패턴으로 파일 탐색 (중복 제거, __init__.py 제외)"""
+    found = set()
+    for pattern in patterns:
+        for f in glob.glob(os.path.join(project_dir, pattern), recursive=True):
+            if '__init__' not in f and '.venv' not in f:
+                found.add(f)
+    return sorted(found)
+
+
 def verify(project_dir: str) -> dict:
     """프로젝트 디렉토리에서 API 계약 검증 실행"""
     result = {
@@ -409,35 +419,51 @@ def verify(project_dir: str) -> dict:
         'errors': [],
     }
 
-    # Python 스키마 탐색
-    schema_path = find_file(project_dir, [
+    # Python 스키마 탐색 (단일 파일 또는 디렉토리)
+    schema_files = find_all_files(project_dir, [
         'server/models/schemas.py',
         'server/**/schemas.py',
+        'server/**/schemas/*.py',
         'backend/models/schemas.py',
-        'backend/**/schemas.py',
+        'backend/**/schemas/*.py',
         '**/schemas.py',
+        '**/schemas/*.py',
     ])
-    if not schema_path:
+    if not schema_files:
         result['errors'].append('schemas.py not found')
         result['status'] = 'error'
         return result
 
-    # Python 라우터 탐색
-    router_path = find_file(project_dir, [
+    # Python 라우터 탐색 (단일 또는 복수 파일)
+    router_files = find_all_files(project_dir, [
         'server/routers/api_v1.py',
         'server/routers/api*.py',
         'server/**/api*.py',
+        'server/api/v1/*.py',
+        'server/**/api/v1/*.py',
+        'server/**/api/**/*.py',
+        'server/**/routers/*.py',
         'backend/routers/api*.py',
         '**/routers/*.py',
     ])
-    if not router_path:
+    if not router_files:
         result['errors'].append('router file not found')
         result['status'] = 'error'
         return result
 
-    # 파싱
-    python_models = parse_pydantic_models(schema_path)
-    python_endpoints = parse_router_endpoints(router_path)
+    # 파싱 (여러 파일에서 모델/엔드포인트 수집)
+    python_models = {}
+    for sf in schema_files:
+        try:
+            python_models.update(parse_pydantic_models(sf))
+        except Exception:
+            pass
+    python_endpoints = {}
+    for rf in router_files:
+        try:
+            python_endpoints.update(parse_router_endpoints(rf))
+        except Exception:
+            pass
     result['parsed']['python_models'] = len(python_models)
     result['parsed']['python_endpoints'] = len(python_endpoints)
 
