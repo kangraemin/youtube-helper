@@ -33,14 +33,16 @@ IDLE_PATTERNS = [
 # 자동 응답이 필요한 패턴 (pattern, response, max_uses)
 # response가 '\r'이면 Enter만 전송 (선택 UI 기본값 선택)
 AUTO_RESPOND_LIST = [
-    # AskUserQuestion 선택 UI (숫자 메뉴) — Enter로 기본 선택
-    (r'Enter\s*to\s*select.*Tab.*Arrow.*Esc\s*to\s*cancel', '\r', 10),
+    # claude plan mode 승인 ("Would you like to proceed?")
+    (r'Would you like to proceed', '\r', 50),
+    # AskUserQuestion 선택 UI — Escape로 질문 건너뛰기
+    (r'Enter\s*to\s*select.*Tab.*Arrow.*Esc\s*to\s*cancel', '\x1b', 50),
     # dev-bounce 계획 승인
-    (r'\[PLAN:승인대기\]', '승인', 3),
-    (r'승인하시면.*시작', '승인', 3),
-    (r'수정.*요청.*있으면.*말씀', '승인', 3),
+    (r'\[PLAN:승인대기\]', '승인', 5),
+    (r'승인하시면.*시작', '승인', 5),
+    (r'수정.*요청.*있으면.*말씀', '승인', 5),
     # 텍스트 질문에 대한 응답
-    (r'질문|확인.*필요|선택.*해주세요', '네, 진행해주세요', 5),
+    (r'질문|확인.*필요|선택.*해주세요', '네, 진행해주세요', 10),
 ]
 AUTO_RESPOND_COUNTS = {}
 
