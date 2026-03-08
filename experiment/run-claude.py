@@ -301,7 +301,11 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
 
         result['elapsed_seconds'] = time.time() - start
         result['exit_code'] = proc.returncode
-        result['success'] = (proc.returncode == 0 or proc.returncode is None) and not result['timed_out']
+        # terminate()로 종료된 경우(-15) 또는 정상 종료(0)도 성공으로 처리
+        result['success'] = (
+            proc.returncode in (0, -15, None)
+            or task_seems_done
+        ) and not result['timed_out']
         result['auto_respond_count'] = auto_respond_count
         result['tool_counts'] = tool_counts
 
