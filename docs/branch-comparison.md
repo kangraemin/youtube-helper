@@ -341,21 +341,9 @@ try { ... } catch (e) {
 
 ### Critical 버그
 
-#### BUG-W1: Dart 문법 에러 — `?history` (빌드 불가)
-- **파일**: `app/lib/features/summarize/infrastructure/api_service.dart` (L111)
-- **심각도**: Critical
-```dart
-body: jsonEncode({
-  'question': question,
-  'transcript': transcript,
-  'summary': summary,
-  'history': ?history,  // ❌ 잘못된 Dart 문법
-}),
-```
-- `?`는 이 컨텍스트에서 사용할 수 없음. `history ?? []` 또는 `history`여야 함
-- **결과**: 앱 빌드 자체가 불가능
+> 참고: `?history` 문법 에러는 `without-dev-bounce` 전용 버그임. `with-dev-bounce`는 chat API를 `messages` 방식으로 완전히 재설계하여 해당 코드가 존재하지 않음.
 
-#### BUG-W2: Chat API 필드명 불일치 (3중 불일치)
+#### BUG-W1: Chat API 필드명 불일치 (3중 불일치)
 - **파일**: `summary_api_service.dart` ↔ `server/models/schemas.py` ↔ `server/routers/api_v1.py`
 - **심각도**: Critical
 
@@ -539,10 +527,10 @@ if (!Hive.isAdapterRegistered(0)) {
 
 | # | 버그 | with-dev-bounce | without-dev-bounce | 비고 |
 |---|------|:-:|:-:|------|
-| 1 | Dart `?history` 문법 에러 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
-| 2 | Chat API 필드명 불일치 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
-| 3 | Transcript 응답 필드 불일치 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
-| 4 | Summarize 요청 필드 누락 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
+| 1 | Chat API 필드명 불일치 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
+| 2 | Transcript 응답 필드 불일치 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
+| 3 | Summarize 요청 필드 누락 | 🔴 Critical | 🔴 Critical | 둘 다 동일 |
+| 4 | Dart `?history` 문법 에러 | - | 🔴 Critical | without만 (with는 messages 방식으로 재설계) |
 | 5 | `summarize_transcript()` 파라미터 역전 | - | 🔴 Critical | without만 |
 | 6 | `gemini_service.chat()` 함수 미존재 | - | 🔴 Critical | without만 |
 | 7 | `get_transcript()` 반환 타입 불일치 | - | 🔴 Critical | without만 |
@@ -554,19 +542,19 @@ if (!Hive.isAdapterRegistered(0)) {
 | 13 | 채팅 메시지 휘발성 | 🟡 Medium | 🟡 Medium | 둘 다 동일 |
 | 14 | JSON 파싱 null 안전성 | 🟡 Medium | 🟡 Medium | 둘 다 동일 |
 | 15 | 메모리 누수 (DotAnimation) | - | 🟡 Medium | without만 |
-| | **Critical 합계** | **4** | **7** | |
+| | **Critical 합계** | **3** | **7** | |
 | | **High 합계** | **2** | **2** | |
 | | **Medium 합계** | **3** | **4** | |
-| | **총 버그 수** | **9** | **13** | |
+| | **총 버그 수** | **8** | **13** | |
 
 ### 핵심 발견
 
-**공통 버그 (4개 Critical)**:
+**공통 버그 (3개 Critical)**:
 - 두 브랜치 모두 Dart ↔ Python API 계약이 심각하게 깨져 있음
-- `?history` 문법 에러로 Chat 관련 코드 자체가 빌드 불가
 - 핵심 기능(자막 추출, 요약, 채팅) 모두 API 불일치로 작동 불가
 
-**`without-dev-bounce` 추가 버그 (3개 Critical)**:
+**`without-dev-bounce` 추가 버그 (4개 Critical)**:
+- `?history` 문법 에러 → 빌드 불가 (`with-dev-bounce`는 messages 방식으로 재설계하여 회피)
 - `summarize_transcript()` 파라미터 순서 역전 → 요약 기능 오작동
 - `gemini_service.chat()` 함수 미존재 → 서버 500 에러
 - `get_transcript()` 반환 타입 불일치 → 자막 파싱 실패
@@ -713,7 +701,7 @@ SUMMARY_PROMPT = """한국어로 요약해주세요..."""
 | **문서화** | 5 | 2 | with: Phase 문서 |
 | **설정 관리** | 5 | 6 | without: config.py |
 | **개발 프로세스** | 9 | 3 | with: 점진적 개발 |
-| **버그 위험도** | 5 | 2 | with: Critical 4개, without: 7개 |
+| **버그 위험도** | 5 | 2 | with: Critical 3개, without: 7개 |
 | **운영/배포** | 8 | 4 | with: 테스트 포함 배포 |
 | **DX** | 8 | 5 | with: 온보딩 용이 |
 | **AI/프롬프트** | 7 | 5 | with: 다국어, 구조화 |
@@ -727,10 +715,10 @@ SUMMARY_PROMPT = """한국어로 요약해주세요..."""
 ### 결론: `with-dev-bounce` ✅ (그러나 둘 다 프로덕션 불가)
 
 심층 분석 결과, **두 브랜치 모두 핵심 기능이 작동하지 않는 치명적 버그**를 공유합니다:
-- Dart `?history` 문법 에러로 빌드 불가
 - Dart ↔ Python API 계약이 전면적으로 깨져 있음 (필드명, 타입, 파라미터)
 
-그러나 `without-dev-bounce`는 여기에 **3개의 추가 Critical 버그**가 존재:
+그러나 `without-dev-bounce`는 여기에 **4개의 추가 Critical 버그**가 존재:
+- `?history` Dart 문법 에러로 빌드 불가 (`with-dev-bounce`는 messages 방식으로 재설계하여 회피)
 - 함수 파라미터 순서 역전
 - 존재하지 않는 함수 호출
 - 반환 타입 불일치
@@ -739,16 +727,16 @@ SUMMARY_PROMPT = """한국어로 요약해주세요..."""
 
 1차 분석에서 `7.0 vs 6.0`이었던 차이가 `6.2 vs 4.2`로 벌어진 이유:
 1. **두 브랜치 공통 버그 발견**으로 전체 점수 하락
-2. **`without-dev-bounce`의 추가 Critical 버그 3개** 발견
+2. **`without-dev-bounce`의 추가 Critical 버그 4개** 발견
 3. 운영/배포, DX, AI/프롬프트 등 새 관점에서 `with-dev-bounce` 우위 확인
 
 ### 프로덕션 투입을 위한 필수 수정 사항
 
 **1순위 (둘 다)**: API 계약 통일
 - Dart ↔ Python 간 모든 요청/응답 필드명 일치시키기
-- `?history` → `history ?? []` 문법 수정
 
-**2순위 (without만)**: 서버 로직 수정
+**2순위 (without만)**: 서버 로직 + 빌드 에러 수정
+- `?history` → `history ?? []` 문법 수정
 - `summarize_transcript()` 파라미터 순서 수정
 - `gemini_service.chat` → `gemini_service.chat_about_video` 수정
 - `get_transcript()` 반환 타입 정리
