@@ -1,0 +1,22 @@
+/dev-bounce 유튜브 링크를 넣으면, 그 스크립트를 가져와서 AI가 요약, 정리해주는 앱이야.
+
+기술 스택: Flutter 앱 + FastAPI 서버 + Gemini AI
+
+기능:
+1. YouTube URL 입력 → 자막 추출 (youtube-transcript-api)
+2. AI 요약 (Gemini)
+3. AI 채팅 (자막 기반 Q&A)
+
+디자인 참고:
+- /Users/ram/Downloads/stitch 2/_2/screen.png (홈 화면)
+- /Users/ram/Downloads/stitch 2/_1/screen.png (상세 화면)
+- /Users/ram/Downloads/stitch 2/_3/screen.png (히스토리 화면)
+
+중요: 캐싱된 데이터를 볼 때 유튜브 썸네일과 타이틀이 반드시 있어야 해.
+
+API 엔드포인트:
+- POST /api/v1/transcript
+- POST /api/v1/summarize
+- POST /api/v1/chat
+
+서버는 server/, 앱은 app/ 디렉토리에 만들어줘.
