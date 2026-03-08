@@ -11,8 +11,10 @@ Usage:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -73,79 +75,64 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
         )
 
-        # 타임아웃 대기 + 실시간 로그
-        log_file = open(log_path, 'w')
-        stdout_data = []
+        # stdout을 별도 스레드에서 읽어 로그 저장
+        log_file = open(log_path, 'wb')
+        stdout_chunks = []
+        last_report = [start]
 
-        try:
-            # 실시간으로 stdout 읽기
-            import select
-            import io
-
+        def read_stdout():
             while True:
-                elapsed = time.time() - start
-                if elapsed > timeout:
-                    print(f"\n  ⏰ 타임아웃 ({timeout}초)", flush=True)
-                    proc.terminate()
-                    time.sleep(5)
-                    if proc.poll() is None:
-                        proc.kill()
-                    result['timed_out'] = True
+                chunk = proc.stdout.read(4096)
+                if not chunk:
                     break
+                stdout_chunks.append(chunk)
+                log_file.write(chunk)
+                log_file.flush()
+                now = time.time()
+                if now - last_report[0] > 30:
+                    total = sum(len(c) for c in stdout_chunks)
+                    elapsed = now - start
+                    print(f"  [{elapsed:.0f}s] 출력: {total}바이트",
+                          flush=True)
+                    last_report[0] = now
 
-                # stdout에서 읽기 (non-blocking)
-                if proc.poll() is not None:
-                    # 프로세스 종료됨 — 남은 출력 읽기
-                    remaining = proc.stdout.read()
-                    if remaining:
-                        stdout_data.append(remaining)
-                        log_file.write(remaining)
-                        log_file.flush()
-                    break
+        reader = threading.Thread(target=read_stdout, daemon=True)
+        reader.start()
 
-                # select로 읽기 가능 여부 확인
-                ready, _, _ = select.select([proc.stdout], [], [], 10)
-                if ready:
-                    chunk = proc.stdout.read(4096)
-                    if chunk:
-                        stdout_data.append(chunk)
-                        log_file.write(chunk)
-                        log_file.flush()
-
-                        # 진행 상황 표시 (30초마다)
-                        elapsed = time.time() - start
-                        total_chars = sum(len(c) for c in stdout_data)
-                        if int(elapsed) % 30 < 11:
-                            print(f"  [{elapsed:.0f}s] 출력: {total_chars}자",
-                                  flush=True)
-
-            stderr_data = proc.stderr.read() if proc.stderr else ''
-
-        except Exception as e:
-            print(f"  읽기 오류: {e}", flush=True)
+        # 타임아웃 대기
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            print(f"\n  ⏰ 타임아웃 ({timeout}초)", flush=True)
             proc.terminate()
-            stderr_data = ''
+            time.sleep(5)
+            if proc.poll() is None:
+                proc.kill()
+            result['timed_out'] = True
 
+        reader.join(timeout=10)
         log_file.close()
 
-        full_stdout = ''.join(stdout_data)
+        stderr_data = proc.stderr.read() or b''
+
+        full_stdout = b''.join(stdout_chunks).decode('utf-8', errors='replace')
         result['elapsed_seconds'] = time.time() - start
         result['exit_code'] = proc.returncode
         result['success'] = proc.returncode == 0 and not result['timed_out']
         result['output_chars'] = len(full_stdout)
 
         if stderr_data:
-            # stderr 로그 저장
+            stderr_text = stderr_data.decode('utf-8', errors='replace')
             stderr_log = log_path.with_suffix('.stderr.log')
             with open(stderr_log, 'w') as f:
-                f.write(stderr_data)
+                f.write(stderr_text)
+        else:
+            stderr_text = ''
 
-        # 비용 추출 시도 (stderr에 있을 수 있음)
-        import re
-        for text in [full_stdout, stderr_data]:
+        # 비용 추출 시도
+        for text in [full_stdout, stderr_text]:
             cost_match = re.search(r'\$(\d+\.\d+)', text)
             if cost_match:
                 result['cost_usd'] = float(cost_match.group(1))
