@@ -77,22 +77,35 @@ class SummaryNotifier extends StateNotifier<SummaryState> {
           .toList();
 
       state = state.copyWith(progress: 0.6);
-      final summary = await api.fetchSummary(
-        videoId: videoId,
-        title: title,
-        fullText: fullText,
-      );
 
-      state = state.copyWith(progress: 0.9);
-      final videoSummary = VideoSummary(
+      final fallbackSummary = VideoSummary(
         videoId: videoId,
         title: title,
         thumbnailUrl: 'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
         fullText: fullText,
-        summary: summary,
+        summary: '',
         transcriptSegments: segments,
         createdAt: DateTime.now(),
       );
+
+      String summary;
+      try {
+        summary = await api.fetchSummary(
+          videoId: videoId,
+          title: title,
+          fullText: fullText,
+        );
+      } catch (_) {
+        await storage.save(fallbackSummary);
+        state = SummaryState(
+          error: '요약 실패! 스크립트는 저장됐어요. 복사하거나 상세보기로 확인하세요.',
+          result: fallbackSummary,
+        );
+        return;
+      }
+
+      state = state.copyWith(progress: 0.9);
+      final videoSummary = fallbackSummary.copyWith(summary: summary);
 
       await storage.save(videoSummary);
 

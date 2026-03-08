@@ -115,9 +115,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: theme.colorScheme.errorContainer,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
-                    summaryState.error!,
-                    style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        summaryState.error!,
+                        style: TextStyle(color: theme.colorScheme.onErrorContainer),
+                      ),
+                      if (summaryState.result != null) ...[
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(
+                                    text: summaryState.result!.fullText,
+                                  ));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('스크립트가 클립보드에 복사됐어요')),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy, size: 18),
+                                label: const Text('스크립트 복사'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: () {
+                                  context.push('/summary/${summaryState.result!.videoId}');
+                                },
+                                icon: const Icon(Icons.visibility, size: 18),
+                                label: const Text('상세보기'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
