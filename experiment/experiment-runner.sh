@@ -115,27 +115,21 @@ install_ai_bouncer() {
         set timeout $INSTALL_TIMEOUT
         spawn bash -c \"cd '$work_dir' && bash <(curl -sL https://raw.githubusercontent.com/kangraemin/ai-bouncer/main/install.sh)\"
 
-        # 설치 모드 선택 (로컬)
+        # Q1: 설치 범위 선택 — 2) 로컬 (.claude/)
         expect {
-            -re {local|global|설치.*모드|1\)|2\)} { send \"1\r\" }
+            -re {선택.*\\\[1\\\]} { send \"2\r\" }
             timeout { }
         }
 
-        # 커밋 전략 (per-step)
+        # Q2: docs/ 폴더 git 추적 — y
         expect {
-            -re {commit.*strategy|커밋|per-step|per-phase|1\)|2\)} { send \"2\r\" }
+            -re {\\\(y/n\\\)} { send \"y\r\" }
             timeout { }
         }
 
-        # docs git track
+        # Q3: 커밋 전략 — 1) per-step
         expect {
-            -re {docs|문서|추적|track|1\)|2\)} { send \"1\r\" }
-            timeout { }
-        }
-
-        # 추가 확인 (y/n)
-        expect {
-            -re {\(y/n\)|proceed|진행|확인} { send \"y\r\" }
+            -re {선택.*\\\[1\\\]} { send \"1\r\" }
             timeout { }
         }
 
