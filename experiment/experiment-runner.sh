@@ -120,10 +120,11 @@ with open(f, 'w') as fp: json.dump(cfg, fp, indent=2)
         --work-dir "$work_dir" \
         --results-dir "$RESULTS_DIR" || true
 
-    # 5. 워크트리 내 변경사항 커밋 (보존용)
+    # 5. 워크트리 내 변경사항 커밋 + 푸시 (보존용)
     pushd "$work_dir" > /dev/null
     git add -A 2>/dev/null || true
     git commit -m "experiment: ${branch_name} 완료" --allow-empty 2>/dev/null || true
+    git push -u origin "$branch_name" 2>/dev/null || true
     popd > /dev/null
 
     echo "  [${branch_name}] 완료"
