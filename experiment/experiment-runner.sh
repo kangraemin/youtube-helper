@@ -130,39 +130,19 @@ with open(f, 'w') as fp: json.dump(cfg, fp, indent=2)
 }
 
 # ============================================================
-# ai-bouncer 설치 (pexpect 없이 직접 실행)
+# ai-bouncer 설치 (stdin heredoc)
 # ============================================================
 install_ai_bouncer() {
     local work_dir=$1
 
-    # expect를 사용한 자동 설치
-    # install.sh가 물어보는 질문들에 자동 응답
-    expect -c "
-        set timeout $INSTALL_TIMEOUT
-        spawn bash -c \"cd '$work_dir' && bash <(curl -sL https://raw.githubusercontent.com/kangraemin/ai-bouncer/main/install.sh)\"
+    # stdin으로 자동 응답: 2(로컬), y(docs추적), 1(per-step)
+    cd "$work_dir" && bash <(curl -sL https://raw.githubusercontent.com/kangraemin/ai-bouncer/main/install.sh) <<'INSTALL_EOF'
+2
+y
+1
+INSTALL_EOF
 
-        # Q1: 설치 범위 선택 — 2) 로컬 (.claude/)
-        expect {
-            -re {선택.*\\\[1\\\]} { send \"2\r\" }
-            timeout { }
-        }
-
-        # Q2: docs/ 폴더 git 추적 — y
-        expect {
-            -re {\\\(y/n\\\)} { send \"y\r\" }
-            timeout { }
-        }
-
-        # Q3: 커밋 전략 — 1) per-step
-        expect {
-            -re {선택.*\\\[1\\\]} { send \"1\r\" }
-            timeout { }
-        }
-
-        expect eof
-    " 2>&1 | tail -5
-
-    echo "  ai-bouncer 설치 완료 (또는 타임아웃)"
+    echo "  ai-bouncer 설치 완료"
 }
 
 # ============================================================
