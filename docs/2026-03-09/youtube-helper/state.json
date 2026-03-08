@@ -1,0 +1,50 @@
+{
+  "workflow_phase": "done",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "replicated-finding-galaxy",
+  "current_dev_phase": 4,
+  "current_step": 2,
+  "dev_phases": {
+    "1": {
+      "name": "server-transcript",
+      "folder": "phase-1-server-transcript",
+      "steps": {
+        "1": {"title": "FastAPI 프로젝트 구조 + 의존성"},
+        "2": {"title": "Transcript API 구현"}
+      }
+    },
+    "2": {
+      "name": "ai-apis",
+      "folder": "phase-2-ai-apis",
+      "steps": {
+        "1": {"title": "Summarize API"},
+        "2": {"title": "Chat API"}
+      }
+    },
+    "3": {
+      "name": "flutter-home",
+      "folder": "phase-3-flutter-home",
+      "steps": {
+        "1": {"title": "Flutter 프로젝트 생성 + 네비게이션"},
+        "2": {"title": "API 서비스 + 홈 화면 UI"}
+      }
+    },
+    "4": {
+      "name": "detail-history",
+      "folder": "phase-4-detail-history",
+      "steps": {
+        "1": {"title": "상세 화면 UI"},
+        "2": {"title": "히스토리 화면"}
+      }
+    }
+  },
+  "verification": {
+    "rounds_passed": 3
+  },
+  "task_dir": "docs/2026-03-09/youtube-helper",
+  "active_file": "docs/2026-03-09/youtube-helper/.active"
+}
