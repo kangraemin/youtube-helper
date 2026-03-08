@@ -93,6 +93,7 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
             '--output-format', 'stream-json',
             '--verbose',
             '--dangerously-skip-permissions',
+            '--permission-mode', 'bypassPermissions',
             '--max-budget-usd', '20',
         ]
 
