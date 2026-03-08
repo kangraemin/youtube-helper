@@ -52,6 +52,22 @@ DONE_PATTERNS = [
 ]
 
 
+def _cleanup_tmux_panes():
+    """실험 후 스폰된 에이전트 tmux pane 정리"""
+    try:
+        import subprocess
+        r = subprocess.run(['tmux', 'list-panes', '-F', '#{pane_id} #{pane_active}'],
+                           capture_output=True, text=True, timeout=5)
+        for line in r.stdout.strip().split('\n'):
+            parts = line.split()
+            if len(parts) == 2 and parts[1] == '0':
+                subprocess.run(['tmux', 'kill-pane', '-t', parts[0]],
+                               capture_output=True, timeout=5)
+        print("  tmux pane 정리 완료", flush=True)
+    except Exception:
+        pass  # tmux 없거나 실패해도 무시
+
+
 def strip_ansi(text: str) -> str:
     return ANSI_RE.sub('', text)
 
@@ -271,7 +287,7 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
             result['cost_usd'] = float(cost_match.group(1))
 
         # 종료
-        print("  claude 종료 중...")
+        print("  claude 종료 중...", flush=True)
         child.sendcontrol('c')
         time.sleep(2)
         child.send('/exit\r')
@@ -282,6 +298,9 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
             child.terminate(force=True)
 
         log_file.close()
+
+        # tmux pane 정리 — 실험에서 스폰된 에이전트 pane 제거
+        _cleanup_tmux_panes()
 
         # 로그 파일에서 추가 메트릭 추출
         with open(log_path, errors='replace') as f:
