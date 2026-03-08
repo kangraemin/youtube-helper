@@ -30,16 +30,26 @@ IDLE_PATTERNS = [
     r'─{20,}',         # 구분선 (작업 완료 후)
 ]
 
-# 자동 응답이 필요한 패턴
-AUTO_RESPOND = {
-    # dev-bounce 관련
-    r'승인|시작|진행': '승인',
-    r'\[PLAN:승인대기\]': '승인',
-    # AskUserQuestion 패턴
-    r'질문|확인.*필요|선택.*해주세요': '네, 진행해주세요',
-    # plan mode approval
-    r'계획.*확인|plan.*review': '승인',
-}
+# 자동 응답이 필요한 패턴 (pattern, response, max_uses)
+# response가 '\r'이면 Enter만 전송 (선택 UI 기본값 선택)
+AUTO_RESPOND_LIST = [
+    # AskUserQuestion 선택 UI (숫자 메뉴) — Enter로 기본 선택
+    (r'Enter\s*to\s*select.*Tab.*Arrow.*Esc\s*to\s*cancel', '\r', 10),
+    # dev-bounce 계획 승인
+    (r'\[PLAN:승인대기\]', '승인', 3),
+    (r'승인하시면.*시작', '승인', 3),
+    (r'수정.*요청.*있으면.*말씀', '승인', 3),
+    # 텍스트 질문에 대한 응답
+    (r'질문|확인.*필요|선택.*해주세요', '네, 진행해주세요', 5),
+]
+AUTO_RESPOND_COUNTS = {}
+
+# 완료 신호 패턴
+DONE_PATTERNS = [
+    r'완료.*상태',
+    r'추가.*요청.*있으시면',
+    r'필요한.*작업.*있으면',
+]
 
 
 def strip_ansi(text: str) -> str:
@@ -135,19 +145,29 @@ def wait_for_idle(child, timeout=1800, check_interval=30):
             snippet = last_line[-1][:80] if last_line else "(empty)"
             print(f"  [{elapsed:.0f}s] 출력 수신: ...{snippet}")
 
-            # 자동 응답 체크
-            for pattern, response in AUTO_RESPOND.items():
-                if re.search(pattern, clean):
-                    print(f"  → 자동 응답: '{response}'")
-                    child.send(response)
-                    time.sleep(0.5)
-                    child.send('\r')
-                    auto_respond_count += 1
-                    no_output_count = 0
+            # 완료 신호 감지
+            for dp in DONE_PATTERNS:
+                if re.search(dp, clean):
+                    no_output_count += 3
+                    print(f"  [{elapsed:.0f}s] 완료 신호 감지")
                     break
 
-        # 연속 2회 출력 없음 → 완료 (최소 60초 경과 후)
-        if no_output_count >= 2 and (time.time() - start) > 60:
+            # 자동 응답 체크 (max_uses 제한)
+            for pattern, response, max_uses in AUTO_RESPOND_LIST:
+                if re.search(pattern, clean):
+                    count = AUTO_RESPOND_COUNTS.get(pattern, 0)
+                    if count < max_uses:
+                        print(f"  -> 자동 응답: '{response}' ({count+1}/{max_uses})", flush=True)
+                        child.send(response)
+                        time.sleep(0.5)
+                        child.send('\r')
+                        auto_respond_count += 1
+                        AUTO_RESPOND_COUNTS[pattern] = count + 1
+                        no_output_count = 0
+                    break
+
+        # 연속 3회 출력 없음 → 완료 (최소 300초 경과 후)
+        if no_output_count >= 3 and (time.time() - start) > 300:
             print(f"  작업 완료 감지 (연속 {no_output_count}회 무출력)")
             break
 
@@ -206,19 +226,32 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
         log_file = open(log_path, 'w')
         child.logfile_read = log_file
 
-        # 초기화 대기
-        print("  claude 초기화 대기 (15초)...")
-        time.sleep(15)
+        # 초기화: trust dialog 자동 처리
+        print("  claude 초기화 + trust dialog 처리...", flush=True)
+        init_start = time.time()
+        while time.time() - init_start < 60:
+            try:
+                child.expect([pexpect.TIMEOUT], timeout=5)
+            except:
+                pass
+            buf = strip_ansi(child.before or '')
+            if 'trust' in buf.lower() or 'Yes, I trust' in buf:
+                print("  -> trust dialog 감지, Enter 전송", flush=True)
+                child.send('\r')
+                time.sleep(3)
+                continue
+            if time.time() - init_start > 10:
+                break
 
-        # with 모드: ai-bouncer 설치 먼저
-        if mode == 'with':
-            print("  ai-bouncer 설치 중...")
-            # ai-bouncer는 claude 밖에서 별도로 설치해야 함
-            # 여기서는 프롬프트에 /dev-bounce가 포함되어 있으므로 그냥 진행
-
-        # 프롬프트 전송
-        print(f"  프롬프트 전송 ({len(prompt)}자)...")
-        child.send(prompt)
+        # 프롬프트 전송 (줄바꿈을 공백으로 변환하여 한 줄로 전송)
+        # claude interactive에서 Enter = 제출이므로 멀티라인 직접 전송 불가
+        prompt_oneline = prompt.replace('\n', ' ').replace('  ', ' ')
+        print(f"  프롬프트 전송 ({len(prompt_oneline)}자, 한 줄로 변환)...", flush=True)
+        # 긴 텍스트는 청크로 분할 전송 (pexpect 버퍼 오버플로 방지)
+        chunk_size = 200
+        for i in range(0, len(prompt_oneline), chunk_size):
+            child.send(prompt_oneline[i:i+chunk_size])
+            time.sleep(0.1)
         time.sleep(1)
         child.send('\r')
 
@@ -251,7 +284,7 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
         log_file.close()
 
         # 로그 파일에서 추가 메트릭 추출
-        with open(log_path) as f:
+        with open(log_path, errors='replace') as f:
             full_log = f.read()
         clean_log = strip_ansi(full_log)
         result['output_chars'] = len(clean_log)
