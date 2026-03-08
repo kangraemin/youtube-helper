@@ -24,77 +24,61 @@
 
 | 카테고리 | with-dev-bounce | without-dev-bounce |
 |---------|:-:|:-:|
-| 아키텍처 | 8.0 | 7.0 |
-| 에러 처리 | 4.0 | 4.0 |
-| 테스트 | 4.0 | 2.0 |
-| 보안 | 4.0 | 4.0 |
+| API 정합성 | 2.0 | 2.0 |
+| 아키텍처 | 7.5 | 8.0 |
+| 에러 처리 | 5.0 | 6.0 |
+| 테스트 | 4.0 | 3.0 |
 | 개발 프로세스 | **9.0** | 3.0 |
 | 운영/배포 | **8.0** | 4.0 |
-| DX (개발자 경험) | **8.0** | 5.0 |
 | AI/프롬프트 | **7.0** | 5.0 |
-| 버그 위험도 | **5.0** | 2.0 |
-| **종합** | **6.2 / 10** | **4.2 / 10** |
+| **종합** | **6.1 / 10** | **4.4 / 10** |
 
 ### 2.2 버그 현황
 
+두 브랜치 모두 동일한 Dart API 클라이언트를 사용하므로 **API 계약 버그는 동일**.
+
 |  | with-dev-bounce | without-dev-bounce |
 |--|:-:|:-:|
-| Critical | 3 | **7** |
-| High | 2 | 2 |
-| Medium | 3 | 4 |
-| **합계** | **8** | **13** |
+| Critical | 5 | 5 |
+| High | 1 | 1 |
+| **합계** | **6** | **6** |
 
 ---
 
-## 3. 발견된 Critical 버그 상세
+## 3. 발견된 버그 상세 (두 브랜치 공통, 6건)
 
-### 3.1 공통 Critical 버그 (3건)
+두 브랜치 모두 동일한 `summary_api_service.dart`와 `schemas.py`를 사용하므로 **API 계약 버그는 완전히 동일**.
 
-두 브랜치 모두에서 발견된 버그. Dart 클라이언트 ↔ Python 서버 간 API 계약이 전면적으로 깨져 있음.
+| # | 심각도 | 버그 | 위치 | 영향 |
+|---|:------:|------|------|------|
+| B1 | HIGH | **Transcript 응답 필드명 불일치** | Dart: `json['video_title']` / Python: `title` | null → `as String` 캐스팅 실패 → **자막 추출 후 크래시** |
+| B2 | CRITICAL | **Summarize 필수 필드 누락** | Dart: `{'transcript': ...}` / Python: `video_title` 필수 | 422 Validation Error → **요약 기능 불작동** |
+| B3 | CRITICAL | **Chat 요청 필드명 불일치** | Dart: `question` / Python: `message` | 422 Validation Error → **채팅 불작동** |
+| B4 | CRITICAL | **Chat 필수 필드 누락** | Dart: `video_title` 미전송 / Python: 필수 | 422 Validation Error |
+| B5 | CRITICAL | **Chat 응답 필드명 불일치** | Dart: `json['answer']` / Python: `reply` | 파싱 실패 |
+| B6 | CRITICAL | **Dart `?history` 문법 에러** | `summary_api_service.dart:111` | 유효하지 않은 Dart 문법 |
 
-| # | 버그 | 위치 | 영향 |
-|---|------|------|------|
-| C-1 | **Chat API 필드명 3중 불일치** | Dart: `question`, `answer` / Python: `message`, `reply`, `video_title`(필수) | Dart가 보내는 필드명과 Python이 기대하는 필드명이 모두 다름. 422 Validation Error → **채팅 기능 완전 불작동** |
-| C-2 | **Transcript 응답 필드 불일치** | Dart: `json['video_title']` / Python: `title` 반환 | Dart가 `video_title` 키로 파싱하지만 서버는 `title`로 반환. null → `as String` 캐스팅 실패 → **자막 추출 후 크래시** |
-| C-3 | **Summarize 요청 필드 누락** | Dart: `{'transcript': ...}` / Python: `transcript` + `video_title` 필요 | 필수 필드 `video_title` 미전송. 422 Validation Error → **요약 기능 불작동** |
-
-### 3.2 `without-dev-bounce` 전용 Critical 버그 (+4건)
-
-dev-bounce 워크플로우 없이 개발한 브랜치에서만 추가로 발견된 버그.
-
-| # | 버그 | 위치 | 영향 |
-|---|------|------|------|
-| C-4 | **Dart 문법 에러 `?history`** | `summary_api_service.dart:111` | `'history': ?history`는 유효하지 않은 Dart 문법. **앱 빌드 불가.** `with-dev-bounce`는 이 코드 자체가 없음 (messages 방식으로 재설계) |
-| C-5 | **`summarize_transcript()` 파라미터 순서 역전** | `api_v1.py:46` → `gemini_service.py:17` | 호출: `(req.transcript, req.video_title)` / 정의: `(title, full_text)`. **제목에 자막이, 자막에 제목이 들어감** → Gemini가 엉터리 요약 생성 |
-| C-6 | **`gemini_service.chat()` 함수 미존재** | `api_v1.py:55` | 라우터가 `gemini_service.chat()`을 호출하지만 실제 함수명은 `chat_about_video()`. **AttributeError → 서버 500 에러** |
-| C-7 | **`get_transcript()` 반환 타입 불일치** | `transcript_service.py:42` → `api_v1.py:30` | `list[dict]`를 `str` 필드에 할당. Dart 클라이언트가 문자열로 파싱 시도 → **자막 데이터 파싱 실패** |
+> **참고**: 초기 분석에서 `without-dev-bounce` 전용 Critical 버그로 보고된 3건(파라미터 순서 역전, 함수 미존재, 반환 타입 불일치)은 전수조사 결과 **모두 오탐**으로 확인되어 삭제함.
 
 ---
 
 ## 4. 핵심 교훈
 
-### dev-bounce가 예방한 것
+### 실질적 차이
 
-`with-dev-bounce`에서는 발견되지 않은 C-4~C-7 버그가 `without-dev-bounce`에서 발견됨.
+- **API 버그는 동일** — 두 브랜치 모두 Dart ↔ Python 간 API 계약이 전면적으로 깨져 있어 핵심 기능 3개(자막, 요약, 채팅) 모두 불작동
+- **Python 내부 호출은 정상** — 두 브랜치 모두 서버 내부 함수 호출(파라미터명, 순서, 타입) 완벽히 일치
 
-- **Dart 문법 에러** (C-4): `with-dev-bounce`는 chat API를 messages 방식으로 재설계하여 문제 자체를 회피
-- **파라미터 순서 역전** (C-5): 단계별 QA 검증이 호출-정의 간 불일치를 잡아냄
-- **함수명 불일치** (C-6): verifier 에이전트가 라우터↔서비스 간 인터페이스 검증
-- **반환 타입 불일치** (C-7): 점진적 커밋으로 각 엔드포인트별 동작 확인
+### 차이는 프로세스와 설계
 
-### dev-bounce가 예방하지 못한 것
-
-공통 Critical 버그 3건(C-1~C-3)은 두 브랜치 모두에서 발견됨.
-
-- Dart ↔ Python 간 **크로스 언어 API 계약 검증**은 dev-bounce만으로 부족
-- E2E 통합 테스트 또는 API 스키마 공유(OpenAPI 등)가 추가로 필요
+- `with-dev-bounce`: **개발 프로세스** 우수 (12커밋, phase 문서, 테스트 14개, 배포 스크립트 포함)
+- `without-dev-bounce`: **설계 패턴** 소폭 우수 (config.py 분리, Repository 패턴, ApiException, ProcessingStep enum)
 
 ### 결론
 
-> dev-bounce 워크플로우는 **서버 내부 로직 버그**를 효과적으로 예방했지만,  
-> **클라이언트-서버 간 통합 버그**는 별도의 검증 메커니즘이 필요하다.  
-> 그럼에도 버그 수 기준 `with-dev-bounce`가 **38% 적은 버그**(8 vs 13)를 보여  
-> 구조화된 개발 프로세스의 효과를 입증했다.
+> dev-bounce 워크플로우는 **Python 내부 정합성은 완벽히 유지**했지만,
+> **크로스 언어(Dart ↔ Python) API 계약 검증은 실패**했다.
+> 이는 dev-bounce 파이프라인에 E2E 통합 테스트나 API 스키마 공유(OpenAPI 등)가 없었기 때문이다.
 
 ---
 
@@ -147,4 +131,4 @@ flutter run
 
 ## 8. 관련 문서
 
-- [`docs/branch-comparison.md`](docs/branch-comparison.md) — Part 1: 구조/아키텍처/프로세스 비교 + Part 2: 심층 버그 분석 및 7가지 관점 평가
+- [`docs/branch-comparison.md`](docs/branch-comparison.md) — 전수조사 기반 상세 비교 보고서 (API 계약 필드별 대조표, 오탐 검증 기록 포함)
