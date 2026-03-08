@@ -25,6 +25,9 @@ APPROVAL_PATTERNS = [
     r'승인하시면.*시작',
     r'수정.*요청.*있으면.*말씀',
     r'승인.*하시[겠면]',
+    r'승인을 기다',
+    r'승인.*기다리고',
+    r'승인.*부탁',
 ]
 
 
@@ -85,6 +88,9 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
     stdin_lock = threading.Lock()
     auto_respond_count = 0
     tool_counts = {}
+    responded_this_turn = False  # 현재 턴에서 자동 응답 보냈는지
+    consecutive_empty_turns = 0  # 연속 빈 턴 (작업 없이 end_turn)
+    task_seems_done = False  # 작업 완료 감지
 
     try:
         cmd = [
@@ -162,6 +168,21 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
                     if block_type == 'text':
                         text = block.get('text', '')
 
+                        # 전체 작업 완료 감지 (개별 step 완료가 아닌 전체)
+                        done_patterns = [
+                            r'더 이상 진행할.*없',
+                            r'모든.*작업.*완료',
+                            r'##.*개발 완료',
+                            r'새로운.*기능.*추가.*필요하시면',
+                            r'\[DONE\]',
+                        ]
+                        for dp in done_patterns:
+                            if re.search(dp, text):
+                                task_seems_done = True
+                                print(f"  [{elapsed:.0f}s] [완료감지] 패턴 매치: {dp}",
+                                      flush=True)
+                                break
+
                         # 30초마다 진행 상황 표시
                         now = time.time()
                         if now - last_report > 30:
@@ -173,8 +194,9 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
                         for pat in APPROVAL_PATTERNS:
                             if re.search(pat, text):
                                 time.sleep(1)
-                                send_user_message(proc, "승인", stdin_lock)
+                                send_user_message(proc, "승인합니다. 진행해주세요.", stdin_lock)
                                 auto_respond_count += 1
+                                responded_this_turn = True
                                 print(f"  [{elapsed:.0f}s] >> 자동 승인 (#{auto_respond_count})",
                                       flush=True)
                                 break
@@ -195,6 +217,7 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
                                 stdin_lock,
                             )
                             auto_respond_count += 1
+                            responded_this_turn = True
                             print(f"  [{elapsed:.0f}s] >> 자동 응답 (#{auto_respond_count})",
                                   flush=True)
 
@@ -209,7 +232,8 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
                             print(f"  [{elapsed:.0f}s] [PlanMode] 종료", flush=True)
 
             elif msg_type == 'result':
-                cost = msg.get('cost_usd')
+                cost = msg.get('total_cost_usd') or msg.get('cost_usd')
+                stop_reason = msg.get('stop_reason', '')
                 if cost:
                     result['cost_usd'] = cost
                 # result는 한 턴 완료 — 프로세스가 아직 살아있으면 계속 읽기
@@ -217,8 +241,39 @@ def run_claude(mode: str, run_number: int, work_dir: str, results_dir: str,
                     print(f"  [{elapsed:.0f}s] [완료] cost=${cost}", flush=True)
                     break
                 else:
-                    print(f"  [{elapsed:.0f}s] [턴완료] cost=${cost}, 계속 대기...",
+                    print(f"  [{elapsed:.0f}s] [턴완료] cost=${cost}, stop={stop_reason}",
                           flush=True)
+                    # end_turn 처리
+                    if stop_reason == 'end_turn':
+                        if responded_this_turn:
+                            consecutive_empty_turns = 0
+                        else:
+                            consecutive_empty_turns += 1
+
+                        # 종료 조건: 완료 감지 + 3턴 빈 응답
+                        if task_seems_done and consecutive_empty_turns >= 3:
+                            print(f"  [{elapsed:.0f}s] 작업 완료 + 연속 {consecutive_empty_turns}턴 — 종료",
+                                  flush=True)
+                            break
+
+                        # 안전밸브: auto-continuation 40회 초과
+                        if auto_respond_count >= 40:
+                            print(f"  [{elapsed:.0f}s] auto-respond 40회 초과 — 종료",
+                                  flush=True)
+                            break
+
+                        # continuation 전송
+                        if not responded_this_turn:
+                            time.sleep(1)
+                            send_user_message(
+                                proc,
+                                "계속 진행해주세요. 승인합니다.",
+                                stdin_lock,
+                            )
+                            auto_respond_count += 1
+                            print(f"  [{elapsed:.0f}s] >> 자동 continuation (#{auto_respond_count})",
+                                  flush=True)
+                    responded_this_turn = False  # 다음 턴 초기화
 
         # 정리
         log_file.close()

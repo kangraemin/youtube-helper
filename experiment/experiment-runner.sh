@@ -71,10 +71,36 @@ run_single() {
     echo "  워크트리 생성: $work_dir (from $INITIAL_COMMIT)"
     git -C "$REPO_ROOT" worktree add -b "$branch_name" "$work_dir" "$INITIAL_COMMIT"
 
-    # 2. with 모드: ai-bouncer 설치
+    # 2. with 모드: ai-bouncer 설치 + experiment override
     if [ "$mode" = "with" ]; then
         echo "  ai-bouncer 설치 중..."
         install_ai_bouncer "$work_dir"
+
+        # Plan mode 금지 + 커밋 전략 none (자동화 환경 대응)
+        echo "  experiment override 적용 중..."
+        cat >> "$work_dir/.claude/CLAUDE.md" << 'OVERRIDE'
+
+# --- experiment override ---
+## CRITICAL: Plan Mode 금지
+이 세션은 자동화 실험 환경입니다. 다음 규칙을 반드시 따르세요:
+
+1. **EnterPlanMode, ExitPlanMode 도구를 절대 사용하지 마세요.** 자동화 환경에서 작동하지 않습니다.
+2. 계획 수립은 plan mode 없이 직접 수행하세요. 코드 탐색, Q&A, plan.md 작성 등 모든 과정을 plan mode 밖에서 진행합니다.
+3. dev-bounce 워크플로우의 나머지 구조(Phase 0→1→2→3→4, state.json, plan-gate 등)는 그대로 따르세요.
+4. AskUserQuestion 대신 자체 판단으로 진행하세요. 사용자 입력을 기다리지 마세요.
+5. 계획이 완성되면 plan.md를 작성하고 바로 plan_approved = true로 설정 후 개발을 시작하세요.
+6. 커밋/푸시는 하지 마세요 (원격 저장소가 없습니다).
+# --- experiment override end ---
+OVERRIDE
+
+        python3 -c "
+import json
+f = '$work_dir/.claude/ai-bouncer/config.json'
+with open(f) as fp: cfg = json.load(fp)
+cfg['commit_strategy'] = 'none'
+cfg['commit_skill'] = False
+with open(f, 'w') as fp: json.dump(cfg, fp, indent=2)
+"
     fi
 
     # 3. claude 실행
