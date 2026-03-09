@@ -1,0 +1,43 @@
+{
+  "workflow_phase": "done",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "bright-chasing-coral",
+  "current_dev_phase": 1,
+  "current_step": 1,
+  "dev_phases": {
+    "1": {
+      "name": "\uc11c\ubc84 \uae30\ubc18 \uad6c\ucd95",
+      "steps": 4,
+      "completed": 0
+    },
+    "2": {
+      "name": "\uc11c\ubc84 AI \uae30\ub2a5",
+      "steps": 3,
+      "completed": 0
+    },
+    "3": {
+      "name": "Flutter \uc571 \uae30\ubcf8 \uad6c\uc870",
+      "steps": 4,
+      "completed": 0
+    },
+    "4": {
+      "name": "Flutter \ud648 \ud654\uba74",
+      "steps": 3,
+      "completed": 0
+    },
+    "5": {
+      "name": "Flutter \uc0c1\uc138+\ud788\uc2a4\ud1a0\ub9ac",
+      "steps": 3,
+      "completed": 0
+    }
+  },
+  "verification": {
+    "rounds_passed": 3
+  },
+  "task_dir": "docs/2026-03-09/youtube-helper",
+  "active_file": "docs/2026-03-09/youtube-helper/.active"
+}
