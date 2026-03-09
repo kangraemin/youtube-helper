@@ -53,6 +53,10 @@ def extract_video_id(url: str) -> str:
             video_id = parsed.path.split("/shorts/")[1].split("/")[0]
             if video_id:
                 return video_id
+        elif parsed.path.startswith("/live/"):
+            video_id = parsed.path.split("/live/")[1].split("/")[0].split("?")[0]
+            if video_id:
+                return video_id
 
     if parsed.hostname in ("youtu.be", "www.youtu.be"):
         video_id = parsed.path.lstrip("/").split("/")[0]

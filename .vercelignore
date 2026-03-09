@@ -1,0 +1,7 @@
+app/
+server/
+experiment/
+docs/
+.git/
+.idea/
+*.service
