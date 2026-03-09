@@ -1,0 +1,28 @@
+{
+  "workflow_phase": "done",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "dev-youtube-helper",
+  "current_dev_phase": 1,
+  "current_step": 1,
+  "dev_phases": {
+    "1": {
+      "name": "FastAPI server",
+      "steps": 4,
+      "completed": 4
+    },
+    "2": {
+      "name": "Flutter app",
+      "steps": 3,
+      "completed": 3
+    }
+  },
+  "verification": {
+    "rounds_passed": 3
+  },
+  "task_dir": "docs/2026-03-09/youtube-helper",
+  "active_file": "docs/2026-03-09/youtube-helper/.active"
+}
