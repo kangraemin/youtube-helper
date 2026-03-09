@@ -1,148 +1,156 @@
-# YouTube Helper — dev-bounce 워크플로우 A/B 비교 보고서
+# YouTube Helper — dev-bounce 워크플로우 A/B 실험 보고서
 
-> **분석일**: 2026-03-08
-> **분석자**: 10년차 CTO + 시니어 백엔드/모바일 개발자 2인 페르소나
-> **방법론**: 두 브랜치의 전체 소스코드 전수조사. 모든 .dart, .py 파일을 1줄 단위로 읽고, API 계약을 필드명 수준에서 교차 대조.
-> **원칙**: 코드에 존재하는 사실만 기술. 추측·과장 없음.
+> **실험 기간**: 2026-03-08 ~ 2026-03-09
+> **방법론**: N=5 자동화 반복 실험 (각 조건 5회, 총 10회)
+> **자동화**: `experiment/run-claude.py` (stream-json 양방향 통신) + `experiment/experiment-runner.sh` (오케스트레이터)
+> **검증**: `experiment/verify-api-contract.py` (Dart ↔ Python API 계약 자동 검증)
 
 ---
 
 ## 1. 실험 설계
 
-동일한 요구사항(YouTube 영상 자막 추출 → AI 요약 → 채팅)을 두 가지 방식으로 구현.
+동일한 요구사항(YouTube 영상 자막 추출 → AI 요약 → 채팅)을 두 가지 방식으로 구현하되, 독립된 git worktree에서 매번 새롭게 시작.
 
 | 항목 | `with-dev-bounce` | `without-dev-bounce` |
 |------|-------------------|---------------------|
-| 개발 방식 | dev-bounce 파이프라인 (intent → planner → dev → qa → verifier) | 자유 개발 (제약 없음) |
-| 전용 커밋 수 | 12 | 1 |
-| 소스 LOC (generated 제외) | 1,984 | 2,543 |
-| Dart 파일 수 (generated 제외) | 20 | 22 |
-| Python 파일 수 | 12 | 13 |
-| 기술 스택 | Flutter + FastAPI + Gemini 2.0 Flash | Flutter + FastAPI + Gemini 2.5 Flash |
+| 개발 방식 | dev-bounce 파이프라인 (intent → planner → dev → qa → verifier) | 자유 개발 + 팀에이전트 구성 지시 |
+| 반복 횟수 | **5회** | **5회** |
+| 시작점 | `f8e094a` (빈 레포) | `f8e094a` (빈 레포) |
+| 기술 스택 | Flutter + FastAPI + Gemini | Flutter + FastAPI + Gemini |
+| 격리 방식 | git worktree (`/tmp/experiment-*`) | git worktree (`/tmp/experiment-*`) |
+| 타임아웃 | 1,800초 (30분) | 1,800초 (30분) |
+| 예산 제한 | $20/run | $20/run |
+
+### 자동화 파이프라인
+
+```
+experiment-runner.sh
+  ├── git worktree 생성 (f8e094a 기준)
+  ├── [with만] ai-bouncer 설치 + experiment override
+  ├── run-claude.py (stream-json 양방향 통신)
+  │     ├── 프롬프트 전송
+  │     ├── AskUserQuestion → 자동 응답
+  │     ├── 승인 패턴 감지 → 자동 승인
+  │     ├── 완료 감지 → 종료
+  │     └── 안전밸브 (40회 auto-continuation)
+  ├── evaluate-run.py (메트릭 수집)
+  └── 결과 커밋 + 푸시
+```
 
 ---
 
-## 2. API 계약 검증 — 가장 중요한 팩트
+## 2. 핵심 결과: API 계약 정합성
 
-### 2.1 `with-dev-bounce`: API 계약 100% 일치
-
-Dart API 클라이언트(`api_service.dart`)가 Python 스키마(`schemas.py`)와 **완벽하게 일치**.
-
-| 엔드포인트 | Dart 요청 필드 | Python 수신 필드 | 일치 |
-|-----------|--------------|----------------|:---:|
-| `/transcript` | `{'url': url}` | `url: str` | ✅ |
-| `/summarize` | `video_id, title, full_text, language` | `video_id, title, full_text, language` | ✅ |
-| `/chat` | `video_id, title, full_text, messages[], language` | `video_id, title, full_text, messages[], language` | ✅ |
-
-| 엔드포인트 | Dart 응답 파싱 | Python 반환 필드 | 일치 |
-|-----------|--------------|----------------|:---:|
-| `/transcript` | `['video_id'], ['title'], ['transcript'], ['full_text']` | `video_id, title, transcript[], full_text` | ✅ |
-| `/summarize` | `['summary']` | `summary` | ✅ |
-| `/chat` | `['reply']` | `reply` | ✅ |
-
-**검증 총 20개 필드 — 불일치 0건. 앱이 정상 작동할 수 있는 상태.**
-
-### 2.2 `without-dev-bounce`: API 계약 5건 불일치 (Critical)
-
-Dart API 클라이언트(`summary_api_service.dart`)와 Python 스키마(`schemas.py`)가 **전면적으로 어긋남**.
-
-| # | 버그 | Dart 코드 | Python 코드 | 심각도 |
-|---|------|----------|-----------|:-----:|
-| B1 | `/transcript` 응답: `video_title` vs `title` | `json['video_title']` (L21) | `title: str` (schemas.py:9) | CRITICAL |
-| B2 | `/summarize` 요청: `video_title` 필수인데 미전송 | `{'transcript': transcript}` (L83) | `video_title: str` 필수 (schemas.py:17) | CRITICAL |
-| B3 | `/chat` 요청: `question` vs `message` | `'question': question` (L108) | `message: str` (schemas.py:34) | CRITICAL |
-| B4 | `/chat` 요청: `video_title` 필수인데 미전송 | 미전송 | `video_title: str` 필수 (schemas.py:33) | CRITICAL |
-| B5 | `/chat` 응답: `answer` vs `reply` | `json['answer']` (L44) | `reply: str` (schemas.py:39) | CRITICAL |
-
-**추가 — 컴파일 불가 문법 오류:**
-
-| # | 버그 | 위치 | 설명 |
-|---|------|------|------|
-| B6 | `?history` 무효 Dart 문법 | summary_api_service.dart:111 | `'history': ?history`는 Dart에서 유효하지 않음. 컴파일 자체 불가 |
-
-**결과: 3대 핵심 기능(자막 추출, 요약, 채팅) 모두 불작동. 앱 빌드 자체도 실패.**
-
----
-
-## 3. Python 내부 함수 호출 검증
-
-두 브랜치 모두 Python 서버 내부의 함수 호출(라우터 → 서비스)은 정확하게 일치.
-
-### `with-dev-bounce`
-
-| 라우터 호출 | 함수 시그니처 | 일치 |
-|-----------|------------|:---:|
-| `summarize_transcript(request.title, request.full_text, request.language)` | `def summarize_transcript(title: str, full_text: str, language: str = "ko")` | ✅ |
-| `chat_about_video(request.title, request.full_text, messages, request.language)` | `def chat_about_video(title: str, full_text: str, messages: list[dict], language: str = "ko")` | ✅ |
-
-### `without-dev-bounce`
-
-| 라우터 호출 | 함수 시그니처 | 일치 |
-|-----------|------------|:---:|
-| `gemini_service.summarize_transcript(req.transcript, req.video_title)` | `def summarize_transcript(transcript: str, video_title: str)` | ✅ |
-| `gemini_service.chat(transcript=..., summary=..., video_title=..., message=..., history=...)` | `def chat(transcript, summary, video_title, message, history)` | ✅ |
-
-**두 브랜치 모두 Python 내부는 문제 없음. 차이는 Dart ↔ Python 크로스 언어 계약에서만 발생.**
-
----
-
-## 4. 아키텍처 비교
-
-### 4.1 Flutter 앱 구조
-
-| 항목 | `with-dev-bounce` | `without-dev-bounce` |
-|------|-------------------|---------------------|
-| 폴더 구조 | `features/{summarize,history,settings}/{domain,infrastructure,application,presentation}` | `features/{summary,history,settings}/{domain,infrastructure,application,presentation}` |
-| 상태관리 | Riverpod + StateNotifier (`SummaryState` copyWith) | Riverpod + StateNotifier (`ProcessingState` + `ProcessingStep` enum) |
-| 모델 | Freezed (`VideoSummary`, `ChatMessage`) | Freezed (`SummaryEntity`) + 수동 Hive TypeAdapter |
-| API 클라이언트 | `ApiService` — raw Map 반환, Provider에서 파싱 | `SummaryApiService` — 타입별 Response 클래스 파싱, `ApiException` 커스텀 예외 |
-| 로컬 저장 | Hive (JSON 문자열 직렬화, Box<dynamic>) | Hive (TypeAdapter 등록, Box<SummaryHiveModel>) |
-| URL 검증 | 없음 (서버에서 처리) | `UrlValidator` 클래스 (5개 패턴 정규식) |
-| 채팅 UI | `SummaryDetailScreen` 하단 인라인 | `ChatWidget` 별도 위젯 (타이핑 애니메이션 포함) |
-| 탭 구성 | 2탭 (요약 / 스크립트) | 3탭 (요약 / 스크립트 / 채팅) |
-| 폰트 | Work Sans (google_fonts) | Noto Sans (google_fonts) |
-| 서버 기본 URL | `http://192.168.0.27:8000` (로컬) | `http://158.179.166.232:8000` (Oracle Cloud) |
-
-### 4.2 FastAPI 백엔드 구조
-
-| 항목 | `with-dev-bounce` | `without-dev-bounce` |
-|------|-------------------|---------------------|
-| 설정 관리 | `os.getenv()` 직접 호출 | `config.py` 분리 (HOST, PORT, GEMINI_API_KEY) |
-| Gemini 모델 | `gemini-2.0-flash` | `gemini-2.5-flash` |
-| 클라이언트 패턴 | 글로벌 변수 + `_get_client()` | `@lru_cache(maxsize=1)` 데코레이터 |
-| 프롬프트 언어 | 다국어 지원 (`language` 파라미터) | 한국어 고정 |
-| temperature | 요약 0.3 / 채팅 0.7 | 미설정 (기본값) |
-| transcript 반환 | `list[TranscriptSegment]` + `full_text` | `str` (줄바꿈 joined) + `source` + `thumbnail_url` |
-| 제목 추출 | oEmbed API (안정적) | HTML 파싱 + 정규식 (취약) |
-| 라우터 prefix | `main.py`에서 `/api/v1` 포함 | 라우터 자체에 `prefix="/api/v1"` |
-| health 엔드포인트 | 없음 | `GET /api/v1/health` ✅ |
-| 에러 코드 | 400, 404, 500 | 400, 502 |
-| `get_video_title()` | 동기 (httpx.get) | 비동기 (async httpx.AsyncClient) |
-| `get_transcript()` 반환 | `tuple[list[dict], str]` (세그먼트 리스트 + full_text) | `tuple[str, str]` (전체 텍스트 + source) |
-
-### 4.3 Hive 초기화 전략
-
-| | `with-dev-bounce` | `without-dev-bounce` |
-|--|-------------------|---------------------|
-| 초기화 실패 시 | `try-catch` → `debugPrint` → 앱 계속 실행 | `catch` → **전체 Hive 삭제** → 재초기화 |
-| TypeAdapter | 없음 (JSON 문자열로 직렬화) | `SummaryHiveModelAdapter` 수동 등록 (typeId=0) |
-| Box 수 | 2개 (`settings`, `history`) | 1개 (`summaries`) |
-
-**평가**: `with-dev-bounce`는 데이터 보존 우선, `without-dev-bounce`는 앱 안정성 우선. 둘 다 트레이드오프.
-
----
-
-## 5. 테스트 비교
+**가장 중요한 메트릭** — Dart 프론트엔드가 Python 백엔드의 API 스키마와 일치하는가.
 
 | | `with-dev-bounce` | `without-dev-bounce` |
 |--|:-:|:-:|
-| Python 테스트 총 수 | **15** | **11** |
-| URL 파싱 테스트 | 10 | 9 |
-| 엔드포인트 통합 테스트 | 5 (transcript 3 + summarize 2) | 2 (summarize 1 + chat 1) |
-| Chat 테스트 | 3 (단일/에러/다중 메시지) | 0 |
-| Flutter 테스트 | 1 (placeholder) | 1 (placeholder) |
+| **API 계약 통과** | **5/5 (100%)** | **3/5 (60%)** |
+| Critical 불일치 | 0건 | 2건 (no2, no5) |
+| Warning | 0건 | 1건 (no3) |
+| 서버 실행 가능 | 5/5 | 5/5 |
 
-**차이**: `with-dev-bounce`가 채팅 엔드포인트 테스트(3건)와 에러 케이스를 더 커버.
+### 개별 실행 결과
+
+| Run | with API | without API |
+|-----|:--------:|:-----------:|
+| no1 | ✅ 0 critical | ✅ 0 critical |
+| no2 | ✅ 0 critical | ❌ **1 critical** |
+| no3 | ✅ 0 critical | ⚠️ **1 warning** |
+| no4 | ✅ 0 critical | ✅ 0 critical |
+| no5 | ✅ 0 critical | ❌ **1 critical** |
+
+### API 불일치 유형 (without-dev-bounce)
+
+without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언어 계약 불일치** 패턴:
+- Dart가 보내는 필드명 ≠ Python이 기대하는 필드명 (예: `video_title` vs `title`)
+- Dart가 파싱하는 응답 키 ≠ Python이 반환하는 키 (예: `answer` vs `reply`)
+- 필수 필드 누락 (Dart에서 미전송, Python에서 ValidationError)
+
+**with-dev-bounce는 5회 모두 0건** — 단계별 구현 + QA + Verifier가 크로스 언어 계약을 자연스럽게 검증.
+
+---
+
+## 3. 시간 및 비용
+
+| | `with-dev-bounce` | `without-dev-bounce` |
+|--|:-:|:-:|
+| **평균 소요 시간** | **662초 (11분)** | **901초 (15분)** |
+| 최소 | 379초 | 331초 |
+| 최대 | 883초 | 1,807초 (타임아웃) |
+| **평균 비용** | **$7.0** | **$5.8** |
+| 총 비용 (5회) | $35.0 | $23.3 (4회, no1 비용 미기록) |
+| 타임아웃 | 0회 | 1회 (no1) |
+
+### 개별 실행 데이터
+
+#### with-dev-bounce
+
+| Run | 시간 | 비용 | Auto-respond | API |
+|-----|:----:|:----:|:------------:|:---:|
+| no1 | 883초 | $17.02 | 15회 | ✅ |
+| no2 | 379초 | $3.73 | 31회 | ✅ |
+| no3 | 851초 | $5.18 | 2회 | ✅ |
+| no4 | 629초 | $5.11 | 13회 | ✅ |
+| no5 | 569초 | $3.91 | 2회 | ✅ |
+
+#### without-dev-bounce
+
+| Run | 시간 | 비용 | Auto-respond | API |
+|-----|:----:|:----:|:------------:|:---:|
+| no1 | 1,807초 | — | 0회 | ✅ |
+| no2 | 882초 | $6.35 | 2회 | ❌ |
+| no3 | 331초 | $2.85 | 40회 | ⚠️ |
+| no4 | 709초 | $3.90 | 2회 | ✅ |
+| no5 | 775초 | $10.20 | 17회 | ❌ |
+
+---
+
+## 4. 정량 비교 요약
+
+| 카테고리 | `with-dev-bounce` | `without-dev-bounce` | 승자 |
+|---------|:-:|:-:|:---:|
+| API 계약 통과율 | 100% | 60% | **with** |
+| 서버 실행 가능 | 100% | 100% | 동률 |
+| 평균 소요 시간 | 662초 | 901초 | **with** (27% 빠름) |
+| 평균 비용 | $7.0 | $5.8 | **without** (17% 저렴) |
+| 타임아웃 | 0회 | 1회 | **with** |
+| 앱 LOC (중앙값) | 1,362 | 1,704 | — |
+
+> **비용 vs 품질 트레이드오프**: with-dev-bounce는 17% 더 비싸지만, API 계약 통과율이 100% vs 60%로 압도적. 비용 대비 품질 관점에서 with-dev-bounce가 유리.
+
+---
+
+## 5. 아키텍처 비교 (대표 실행 기준)
+
+수동 코드 리뷰 결과 (1회차 기준). N=5 반복에서도 동일한 패턴 관찰.
+
+### Flutter 앱
+
+| 항목 | `with-dev-bounce` | `without-dev-bounce` |
+|------|-------------------|---------------------|
+| 상태관리 | Riverpod + StateNotifier | Riverpod + StateNotifier |
+| 모델 | Freezed | Freezed + Hive TypeAdapter |
+| API 클라이언트 | raw Map → Provider 파싱 | 타입별 Response 클래스 + ApiException |
+| 로컬 저장 | Hive (JSON 문자열) | Hive (TypeAdapter) |
+| URL 검증 | 서버 의존 | 클라이언트 UrlValidator |
+
+### FastAPI 백엔드
+
+| 항목 | `with-dev-bounce` | `without-dev-bounce` |
+|------|-------------------|---------------------|
+| 설정 관리 | `os.getenv()` 직접 | `config.py` 분리 |
+| Gemini 모델 | gemini-2.0-flash | gemini-2.5-flash |
+| 프롬프트 언어 | 다국어 (language 파라미터) | 한국어 고정 |
+| temperature | 요약 0.3 / 채팅 0.7 | 미설정 (기본값) |
+| 제목 추출 | oEmbed API (안정적) | HTML 파싱 (취약) |
+
+### 설계 품질 평가
+
+- **without-dev-bounce가 우수**: config 분리, Repository 패턴, TypeAdapter, ApiException, UrlValidator, ChatWidget 분리
+- **with-dev-bounce가 우수**: API 계약 100% 정합성, 다국어 지원, temperature 튜닝, oEmbed API, 테스트 커버리지 (15 vs 11)
+
+> 결론: without-dev-bounce는 **코드 설계 패턴이 더 성숙**하지만, **크로스 언어 API 계약에서 40% 확률로 실패**. with-dev-bounce는 단계별 검증 덕분에 100% 정합성.
 
 ---
 
@@ -150,111 +158,80 @@ Dart API 클라이언트(`summary_api_service.dart`)와 Python 스키마(`schema
 
 | 항목 | `with-dev-bounce` | `without-dev-bounce` |
 |------|-------------------|---------------------|
-| 커밋 수 | 12 (단계별 의미 단위) | 1 (단일 커밋) |
-| 커밋 이력 추적 | ✅ 변경 이유·시점 파악 가능 | ❌ 불가 |
-| Phase 문서 | 4 phase × 2~3 step = 16개 문서 | 없음 |
-| 에이전트 정의 | 8개 (intent, planner-lead, planner-dev, planner-qa, dev, qa, verifier, lead) | 없음 |
+| 워크플로우 | Phase 0(인텐트)→1(계획)→2(승인)→3(개발)→4(검증) | 자유 개발 + 팀에이전트 |
+| 커밋 단위 | phase/step별 | 단일 또는 소수 |
+| 계획 문서 | plan.md + phase별 step docs | 없음 |
+| Gate 시스템 | plan-gate + bash-gate + completion-gate | 없음 |
+| QA 검증 | Verifier 3회 연속 통과 필수 | 없음 |
 | Hook 스크립트 | 5개 (bash-audit, bash-gate, completion-gate, doc-reminder, plan-gate) | 없음 |
-| 배포 스크립트 | 39줄 (로컬 테스트 → rsync → 원격 테스트 → 서비스 재시작) | 21줄 (rsync → pip install → 서비스 재시작) |
-| CLAUDE.md | ✅ 프로젝트 컨텍스트 정의 | 없음 |
 
 ---
 
-## 7. 설계 품질 세부 비교
+## 7. 결론
 
-### `without-dev-bounce`가 우수한 점
+### 핵심 발견
 
-1. **`config.py` 분리** — 환경변수를 한 곳에서 관리. `with-dev-bounce`는 `os.getenv()` 산재.
-2. **`ProcessingStep` enum** — 상태 전이가 명시적 (`idle → extracting → summarizing → done → error`). `with-dev-bounce`는 `isLoading + progress` 조합으로 암묵적.
-3. **`ApiException` 커스텀 예외** — HTTP 상태 코드 포함, 에러 타입 구분 가능. `with-dev-bounce`는 일반 `Exception`.
-4. **Repository 패턴** — `SummaryRepository` 인터페이스 + `SummaryRepositoryImpl` 구현 분리. `with-dev-bounce`는 `StorageService` 직접 사용.
-5. **Hive TypeAdapter** — 타입 안전한 직렬화. `with-dev-bounce`는 JSON 문자열 저장.
-6. **`UrlValidator` 클라이언트측 검증** — 서버 요청 전 잘못된 URL 차단. `with-dev-bounce`는 서버 의존.
-7. **`ChatWidget` 분리 + 타이핑 애니메이션** — UI 완성도 높음.
-8. **Health 엔드포인트** — 서버 상태 확인 가능.
-9. **비동기 `get_video_title()`** — 이벤트 루프 블로킹 방지.
+1. **API 계약 정합성**: with-dev-bounce 100% vs without-dev-bounce 60%. 이것이 가장 큰 차이.
+2. **원인 분석**: without-dev-bounce는 프론트엔드와 백엔드를 동시에 생성하면서 필드명이 어긋남. with-dev-bounce는 Phase별 순차 구현 + QA 검증으로 자연스럽게 방지.
+3. **시간 효율**: with-dev-bounce가 27% 빠름 (662초 vs 901초). Gate 시스템이 삽질을 줄여줌.
+4. **비용**: with-dev-bounce가 17% 더 비쌈 ($7.0 vs $5.8). 검증 단계에 추가 토큰 소모.
+5. **안정성**: with-dev-bounce는 타임아웃 0회, without-dev-bounce는 1회.
 
-### `with-dev-bounce`가 우수한 점
+### 한 줄 요약
 
-1. **API 계약 정합성 100%** — 가장 중요한 차이. 앱이 실제로 동작함.
-2. **다국어 프롬프트 지원** — `language` 파라미터로 한국어/영어 전환. `without-dev-bounce`는 한국어 고정.
-3. **temperature 설정** — 요약(0.3, 결정적) vs 채팅(0.7, 창의적) 분리 튜닝.
-4. **TranscriptSegment 구조체** — 타임스탬프별 세그먼트 반환. UI에서 시간별 네비게이션 가능.
-5. **oEmbed API 제목 추출** — HTML 파싱보다 안정적 (YouTube 마크업 변경에 안전).
-6. **테스트 커버리지** — 15개 vs 11개, 특히 채팅 엔드포인트 3건 추가.
-7. **배포 스크립트** — 로컬 테스트 → 원격 테스트 → 서비스 재시작의 안전한 파이프라인.
-8. **커밋 이력** — 12개 의미 단위 커밋으로 변경 추적·롤백 가능.
-9. **Phase 문서** — 개발 과정 전체가 문서화되어 재현·인수인계 가능.
+> **dev-bounce는 "작동하는 소프트웨어"를 만든다.** 설계 패턴은 without-dev-bounce가 더 성숙하지만, 40% 확률로 API가 깨진다면 의미가 없다.
 
 ---
 
-## 8. 종합 평가
+## 8. 실험 재현
 
-### 8.1 점수표
+### 사전 준비
 
-| 카테고리 | `with-dev-bounce` | `without-dev-bounce` | 근거 |
-|---------|:-:|:-:|------|
-| **API 정합성** | **10** | **0** | with: 20/20 필드 일치. without: 컴파일 불가 + 5건 불일치 |
-| **아키텍처 설계** | 7 | **8.5** | without: config 분리, enum 상태, Repository 패턴, TypeAdapter, 클라이언트 검증 |
-| **에러 처리** | 6 | **7** | without: ApiException, ProcessingStep.error. with: 일반 Exception |
-| **테스트** | **7** | 5 | with: 15개(채팅 3건 포함). without: 11개 |
-| **개발 프로세스** | **9.5** | 2 | with: 12커밋, 16개 문서, 8 에이전트, 5 hook. without: 1커밋 |
-| **운영/배포** | **8** | 5 | with: 테스트 포함 배포 39줄. without: 기본 배포 21줄 |
-| **AI/프롬프트** | **8** | 5 | with: 다국어, temperature. without: 한국어 고정 |
-| **UI 완성도** | 7 | **7.5** | without: ChatWidget 분리, 타이핑 애니메이션, 3탭 |
+```bash
+# Claude Code CLI 설치 필요
+# ai-bouncer는 experiment-runner.sh가 자동 설치
 
-### 8.2 가중 종합
+pip install scipy  # Mann-Whitney U 검정 (선택)
+```
 
-API 정합성에 가중치 40% (앱이 작동하는지가 가장 중요), 나머지 균등 배분:
+### 실행
 
-| | `with-dev-bounce` | `without-dev-bounce` |
-|--|:-:|:-:|
-| API 정합성 (40%) | 4.0 | 0.0 |
-| 아키텍처 (10%) | 0.7 | 0.85 |
-| 에러 처리 (5%) | 0.3 | 0.35 |
-| 테스트 (10%) | 0.7 | 0.5 |
-| 개발 프로세스 (15%) | 1.425 | 0.3 |
-| 운영/배포 (5%) | 0.4 | 0.25 |
-| AI/프롬프트 (10%) | 0.8 | 0.5 |
-| UI (5%) | 0.35 | 0.375 |
-| **가중 합계** | **8.675** | **3.125** |
+```bash
+# N=5 전체 실행 (with + without 각 5회)
+./experiment/experiment-runner.sh
 
----
+# 특정 모드만
+./experiment/experiment-runner.sh --mode with --start 1 --end 5
 
-## 9. 결론
+# 드라이런
+./experiment/experiment-runner.sh --dry-run
 
-### 사실 요약
+# 결과 재집계
+python3 experiment/aggregate-results.py --results-dir experiment/results
+```
 
-1. **`with-dev-bounce`는 작동하는 앱이다.** Dart ↔ Python 간 API 계약이 20개 필드 모두 일치. 실제 서비스 가능.
-2. **`without-dev-bounce`는 작동하지 않는 앱이다.** 컴파일 에러 1건 + API 계약 불일치 5건. 3대 핵심 기능 모두 불작동.
-3. **`without-dev-bounce`의 설계 패턴은 더 성숙하다.** config 분리, Repository 패턴, enum 상태 머신, TypeAdapter, ApiException 등.
-4. **`with-dev-bounce`의 개발 프로세스는 압도적이다.** 12커밋, 16개 phase 문서, 8개 에이전트 정의, 5개 hook, 테스트 포함 배포.
+### 설정 변경
 
-### CTO 관점
-
-> dev-bounce 워크플로우의 핵심 가치는 **"작동하는 소프트웨어를 만든다"**는 것이다.
-> 아무리 아름다운 설계 패턴도 API 계약이 깨지면 의미가 없다.
-> `without-dev-bounce`는 단일 커밋으로 구현했기 때문에 **Dart와 Python 사이의 정합성을 검증할 기회가 없었다**.
-> `with-dev-bounce`는 단계별 구현 + QA + Verifier 파이프라인을 통해 크로스 언어 계약을 자연스럽게 검증했다.
-
-### 시니어 개발자 관점
-
-> `without-dev-bounce`의 코드 자체는 더 좋다. Repository 패턴, TypeAdapter, ApiException — 실무에서 쓸 만한 패턴이다.
-> 하지만 결국 **프론트엔드와 백엔드를 동시에 한 번에 만들다가 API 스펙이 어긋난 것**이다.
-> dev-bounce처럼 phase를 나누면 "Phase 1: 백엔드 → Phase 3: 프론트엔드"에서 이미 존재하는 서버 스키마에 맞춰 클라이언트를 짜게 되므로, 자연스럽게 정합성이 보장된다.
+```bash
+# experiment/config.env
+NUM_RUNS=10          # 반복 횟수
+CLAUDE_TIMEOUT=1800  # 타임아웃 (초)
+INITIAL_COMMIT=f8e094a  # 시작 커밋
+```
 
 ---
 
-## 10. 기술 스택
+## 9. 기술 스택
 
 | 영역 | 기술 |
 |------|------|
 | Frontend | Flutter (Dart) — Riverpod, GoRouter, Hive, Freezed |
 | Backend | FastAPI (Python) — Pydantic, Uvicorn |
 | AI | Google Gemini (2.0 Flash / 2.5 Flash) |
-| 배포 | rsync + systemd (Oracle Cloud) |
+| 실험 자동화 | Python (stream-json) + Bash (worktree 오케스트레이션) |
+| API 검증 | Python AST 기반 Pydantic 스키마 파싱 + Dart HTTP 패턴 매칭 |
 
-## 11. 실행 방법
+## 10. 실행 방법
 
 ```bash
 # 서버
