@@ -71,9 +71,12 @@ class _SummaryDetailScreenState extends ConsumerState<SummaryDetailScreen>
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Clipboard.setData(ClipboardData(text: summary.summary));
+          final isTranscriptTab = _tabController.index == 1;
+          final text = isTranscriptTab ? summary.fullText : summary.summary;
+          final label = isTranscriptTab ? '스크립트가' : '요약이';
+          Clipboard.setData(ClipboardData(text: text));
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('요약이 복사되었습니다')),
+            SnackBar(content: Text('$label 복사되었습니다')),
           );
         },
         backgroundColor: theme.colorScheme.primary,

@@ -77,11 +77,16 @@ class SummaryNotifier extends StateNotifier<SummaryState> {
           .toList();
 
       state = state.copyWith(progress: 0.6);
-      final summary = await api.fetchSummary(
-        videoId: videoId,
-        title: title,
-        fullText: fullText,
-      );
+      String summary = '';
+      try {
+        summary = await api.fetchSummary(
+          videoId: videoId,
+          title: title,
+          fullText: fullText,
+        );
+      } catch (_) {
+        summary = '(요약 없음)';
+      }
 
       state = state.copyWith(progress: 0.9);
       final videoSummary = VideoSummary(

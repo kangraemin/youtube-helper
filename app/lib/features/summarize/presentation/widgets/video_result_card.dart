@@ -82,12 +82,13 @@ class VideoResultCard extends StatelessWidget {
                     IconButton.filledTonal(
                       onPressed: () {
                         Clipboard.setData(
-                            ClipboardData(text: summary.summary));
+                            ClipboardData(text: summary.fullText));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('요약이 복사되었습니다')),
+                          const SnackBar(content: Text('스크립트가 복사되었습니다')),
                         );
                       },
-                      icon: const Icon(Icons.content_copy, size: 18),
+                      icon: const Icon(Icons.subtitles, size: 18),
+                      tooltip: '스크립트 복사',
                     ),
                   ],
                 ),

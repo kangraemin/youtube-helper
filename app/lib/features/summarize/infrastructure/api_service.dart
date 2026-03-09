@@ -10,7 +10,7 @@ class ApiService {
 
   Future<Map<String, dynamic>> fetchTranscript(String url) async {
     final response = await http.post(
-      Uri.parse('$baseUrl/api/transcript'),
+      Uri.parse('$baseUrl/api/v1/transcript'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'url': url}),
     );
