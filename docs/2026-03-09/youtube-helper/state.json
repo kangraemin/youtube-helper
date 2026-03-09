@@ -1,0 +1,28 @@
+{
+  "workflow_phase": "done",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "squishy-wobbling-allen",
+  "current_dev_phase": 2,
+  "current_step": 1,
+  "dev_phases": {
+    "1": {
+      "name": "Server \uae30\ubc18 \uad6c\ucd95",
+      "total_steps": 6,
+      "completed_steps": 6
+    },
+    "2": {
+      "name": "Flutter App \uae30\ubc18 \uad6c\ucd95",
+      "total_steps": 6,
+      "completed_steps": 6
+    }
+  },
+  "verification": {
+    "rounds_passed": 3
+  },
+  "task_dir": "docs/2026-03-09/youtube-helper",
+  "active_file": "docs/2026-03-09/youtube-helper/.active"
+}
