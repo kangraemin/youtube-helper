@@ -79,8 +79,10 @@ without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언
 | 최소 | 379초 | 331초 |
 | 최대 | 883초 | 1,807초 (타임아웃) |
 | **평균 비용** | **$7.0** | **$5.8** |
-| 총 비용 (5회) | $35.0 | $23.3 (4회, no1 비용 미기록) |
+| 총 비용 | $34.95 (5회) | $23.30 (4회)* |
 | 타임아웃 | 0회 | 1회 (no1) |
+
+> *without-dev-bounce no1은 타임아웃으로 비용이 기록되지 않음. 평균 비용은 기록된 4회 기준이므로 실제로는 더 높을 수 있음.
 
 ### 개별 실행 데이터
 
@@ -98,7 +100,7 @@ without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언
 
 | Run | 시간 | 비용 | Auto-respond | API |
 |-----|:----:|:----:|:------------:|:---:|
-| no1 | 1,807초 | — | 0회 | ✅ |
+| no1 | 1,807초 | (미기록) | 0회 | ✅ |
 | no2 | 882초 | $6.35 | 2회 | ❌ |
 | no3 | 331초 | $2.85 | 40회 | ⚠️ |
 | no4 | 709초 | $3.90 | 2회 | ✅ |
@@ -106,51 +108,84 @@ without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언
 
 ---
 
-## 4. 정량 비교 요약
+## 4. 종합 점수표
 
-| 카테고리 | `with-dev-bounce` | `without-dev-bounce` | 승자 |
-|---------|:-:|:-:|:---:|
-| API 계약 통과율 | 100% | 60% | **with** |
-| 서버 실행 가능 | 100% | 100% | 동률 |
-| 평균 소요 시간 | 662초 | 901초 | **with** (27% 빠름) |
-| 평균 비용 | $7.0 | $5.8 | **without** (17% 저렴) |
-| 타임아웃 | 0회 | 1회 | **with** |
-| 앱 LOC (중앙값) | 1,362 | 1,704 | — |
+### 4.1 카테고리별 점수 (10점 만점)
 
-> **비용 vs 품질 트레이드오프**: with-dev-bounce는 17% 더 비싸지만, API 계약 통과율이 100% vs 60%로 압도적. 비용 대비 품질 관점에서 with-dev-bounce가 유리.
+| 카테고리 | `with-dev-bounce` | `without-dev-bounce` | 근거 |
+|---------|:-:|:-:|------|
+| **API 정합성** | **10** | **4** | with: 5/5 통과(100%). without: 3/5 통과(60%), critical 2건 |
+| **아키텍처 설계** | 7 | **8.5** | without: config 분리, Repository 패턴, TypeAdapter, ApiException, UrlValidator |
+| **에러 처리** | 6 | **7** | without: ApiException 커스텀 예외, ProcessingStep enum 상태 머신 |
+| **테스트** | **7** | 5 | with: 15개(채팅 3건 포함). without: 11개. 1회차 수동 리뷰 기준 |
+| **개발 프로세스** | **9.5** | 3 | with: phase별 커밋, 문서 16개, hook 5개. without: 단일/소수 커밋 |
+| **안정성** | **9** | 6 | with: 타임아웃 0, 분산 낮음. without: 타임아웃 1, 시간 편차 큼 |
+| **시간 효율** | **8** | 5 | with: 평균 662초. without: 평균 901초 (27% 느림) |
+| **비용 효율** | 6 | **7** | without: 평균 $5.8 (17% 저렴). 단, no1 미기록 |
+
+### 4.2 가중 종합
+
+API 정합성에 가중치 40% (앱이 작동하는지가 가장 중요), 나머지 균등 배분:
+
+| | `with-dev-bounce` | `without-dev-bounce` |
+|--|:-:|:-:|
+| API 정합성 (40%) | 4.00 | 1.60 |
+| 아키텍처 (10%) | 0.70 | 0.85 |
+| 에러 처리 (5%) | 0.30 | 0.35 |
+| 테스트 (8%) | 0.56 | 0.40 |
+| 개발 프로세스 (12%) | 1.14 | 0.36 |
+| 안정성 (10%) | 0.90 | 0.60 |
+| 시간 효율 (10%) | 0.80 | 0.50 |
+| 비용 효율 (5%) | 0.30 | 0.35 |
+| **가중 합계** | **8.70** | **5.01** |
 
 ---
 
-## 5. 아키텍처 비교 (대표 실행 기준)
+## 5. 아키텍처 비교
 
-수동 코드 리뷰 결과 (1회차 기준). N=5 반복에서도 동일한 패턴 관찰.
+> 아래 비교는 **1회차(no1) 브랜치의 수동 코드 리뷰** 기준입니다. 다른 run에서도 유사한 패턴이 나타나지만, 5회 전부를 정밀 리뷰한 것은 아닙니다.
 
 ### Flutter 앱
 
 | 항목 | `with-dev-bounce` | `without-dev-bounce` |
 |------|-------------------|---------------------|
-| 상태관리 | Riverpod + StateNotifier | Riverpod + StateNotifier |
-| 모델 | Freezed | Freezed + Hive TypeAdapter |
-| API 클라이언트 | raw Map → Provider 파싱 | 타입별 Response 클래스 + ApiException |
-| 로컬 저장 | Hive (JSON 문자열) | Hive (TypeAdapter) |
-| URL 검증 | 서버 의존 | 클라이언트 UrlValidator |
+| 상태관리 | Riverpod + StateNotifier (`SummaryState` copyWith) | Riverpod + StateNotifier (`ProcessingState` + `ProcessingStep` enum) |
+| 모델 | Freezed (`VideoSummary`, `ChatMessage`) | Freezed (`SummaryEntity`) + 수동 Hive TypeAdapter |
+| API 클라이언트 | `ApiService` — raw Map 반환, Provider에서 파싱 | `SummaryApiService` — 타입별 Response 클래스, `ApiException` 커스텀 예외 |
+| 로컬 저장 | Hive (JSON 문자열 직렬화, Box\<dynamic\>) | Hive (TypeAdapter 등록, Box\<SummaryHiveModel\>) |
+| URL 검증 | 없음 (서버에서 처리) | `UrlValidator` 클래스 (5개 패턴 정규식) |
+| 채팅 UI | `SummaryDetailScreen` 하단 인라인 | `ChatWidget` 별도 위젯 (타이핑 애니메이션 포함) |
 
 ### FastAPI 백엔드
 
 | 항목 | `with-dev-bounce` | `without-dev-bounce` |
 |------|-------------------|---------------------|
-| 설정 관리 | `os.getenv()` 직접 | `config.py` 분리 |
+| 설정 관리 | `os.getenv()` 직접 호출 | `config.py` 분리 |
 | Gemini 모델 | gemini-2.0-flash | gemini-2.5-flash |
-| 프롬프트 언어 | 다국어 (language 파라미터) | 한국어 고정 |
+| 프롬프트 언어 | 다국어 지원 (`language` 파라미터) | 한국어 고정 |
 | temperature | 요약 0.3 / 채팅 0.7 | 미설정 (기본값) |
-| 제목 추출 | oEmbed API (안정적) | HTML 파싱 (취약) |
+| 제목 추출 | oEmbed API (안정적) | HTML 파싱 + 정규식 (취약) |
+| transcript 반환 | `list[TranscriptSegment]` + `full_text` | `str` (줄바꿈 joined) |
+| 클라이언트 패턴 | 글로벌 변수 + `_get_client()` | `@lru_cache(maxsize=1)` |
 
 ### 설계 품질 평가
 
-- **without-dev-bounce가 우수**: config 분리, Repository 패턴, TypeAdapter, ApiException, UrlValidator, ChatWidget 분리
-- **with-dev-bounce가 우수**: API 계약 100% 정합성, 다국어 지원, temperature 튜닝, oEmbed API, 테스트 커버리지 (15 vs 11)
+**without-dev-bounce가 우수한 점:**
+1. `config.py` 분리 — 환경변수를 한 곳에서 관리
+2. `ProcessingStep` enum — 상태 전이가 명시적
+3. `ApiException` 커스텀 예외 — HTTP 상태 코드 포함
+4. Repository 패턴 — 인터페이스 + 구현 분리
+5. Hive TypeAdapter — 타입 안전한 직렬화
+6. `UrlValidator` 클라이언트측 검증
+7. `ChatWidget` 분리 + 타이핑 애니메이션
 
-> 결론: without-dev-bounce는 **코드 설계 패턴이 더 성숙**하지만, **크로스 언어 API 계약에서 40% 확률로 실패**. with-dev-bounce는 단계별 검증 덕분에 100% 정합성.
+**with-dev-bounce가 우수한 점:**
+1. **API 계약 정합성 100%** — 가장 중요한 차이
+2. 다국어 프롬프트 지원 (`language` 파라미터)
+3. temperature 설정 분리 (요약 0.3 / 채팅 0.7)
+4. TranscriptSegment 구조체 — 타임스탬프별 세그먼트
+5. oEmbed API 제목 추출 — HTML 파싱보다 안정적
+6. 테스트 커버리지 15개 vs 11개 (채팅 엔드포인트 3건 포함)
 
 ---
 
@@ -159,7 +194,7 @@ without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언
 | 항목 | `with-dev-bounce` | `without-dev-bounce` |
 |------|-------------------|---------------------|
 | 워크플로우 | Phase 0(인텐트)→1(계획)→2(승인)→3(개발)→4(검증) | 자유 개발 + 팀에이전트 |
-| 커밋 단위 | phase/step별 | 단일 또는 소수 |
+| 커밋 단위 | phase/step별 의미 단위 | 단일 또는 소수 |
 | 계획 문서 | plan.md + phase별 step docs | 없음 |
 | Gate 시스템 | plan-gate + bash-gate + completion-gate | 없음 |
 | QA 검증 | Verifier 3회 연속 통과 필수 | 없음 |
@@ -171,11 +206,19 @@ without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언
 
 ### 핵심 발견
 
-1. **API 계약 정합성**: with-dev-bounce 100% vs without-dev-bounce 60%. 이것이 가장 큰 차이.
-2. **원인 분석**: without-dev-bounce는 프론트엔드와 백엔드를 동시에 생성하면서 필드명이 어긋남. with-dev-bounce는 Phase별 순차 구현 + QA 검증으로 자연스럽게 방지.
+1. **API 계약 정합성**: with-dev-bounce **100%** vs without-dev-bounce **60%**. 가장 결정적인 차이.
+2. **원인 분석**: without-dev-bounce는 프론트엔드와 백엔드를 동시에 생성하면서 필드명이 어긋남. with-dev-bounce는 Phase별 순차 구현(백엔드 → 프론트엔드) + QA 검증으로 자연스럽게 방지.
 3. **시간 효율**: with-dev-bounce가 27% 빠름 (662초 vs 901초). Gate 시스템이 삽질을 줄여줌.
-4. **비용**: with-dev-bounce가 17% 더 비쌈 ($7.0 vs $5.8). 검증 단계에 추가 토큰 소모.
-5. **안정성**: with-dev-bounce는 타임아웃 0회, without-dev-bounce는 1회.
+4. **비용**: with-dev-bounce가 약 17% 더 비쌈 ($7.0 vs $5.8). 검증 단계에 추가 토큰 소모.
+5. **안정성**: with-dev-bounce는 타임아웃 0회, 시간 편차 작음. without-dev-bounce는 타임아웃 1회, 331초~1,807초로 편차 큼.
+6. **설계 패턴**: without-dev-bounce의 코드가 더 성숙한 패턴을 사용하지만, API 계약이 깨지면 의미가 없음.
+
+### 가중 종합 점수
+
+| | `with-dev-bounce` | `without-dev-bounce` |
+|--|:-:|:-:|
+| **8.70 / 10** | | |
+| | **8.70** | **5.01** |
 
 ### 한 줄 요약
 
@@ -183,7 +226,42 @@ without-dev-bounce에서 발생한 API 불일치는 전형적인 **크로스 언
 
 ---
 
-## 8. 실험 재현
+## 8. 실험 한계 및 위협 요인
+
+본 실험의 결과를 해석할 때 다음 사항을 고려해야 합니다.
+
+### 8.1 표본 크기
+
+N=5는 통계적 유의성을 확보하기에 작은 표본입니다. Mann-Whitney U 검정을 실행하지 못했으며 (scipy 미설치), 현재 수치는 기술 통계(descriptive statistics)에 해당합니다. "27% 빠름", "17% 저렴" 등의 차이가 통계적으로 유의한지는 추가 검증이 필요합니다.
+
+### 8.2 프롬프트 차이 (교란 변수)
+
+두 조건의 프롬프트가 완전히 동일하지 않습니다:
+- **with-dev-bounce**: `/dev-bounce` 명령으로 구조화된 파이프라인 실행
+- **without-dev-bounce**: "팀에이전트를 구성해서 진행해줘" 추가 지시
+
+"팀에이전트 구성" 지시 자체가 결과에 영향을 줬을 가능성이 있습니다. 예를 들어:
+- 팀 구성에 시간/토큰을 소비하느라 정작 API 검증에 소홀했을 수 있음
+- 팀에이전트 지시 없이 자유 개발했으면 오히려 더 좋은 결과가 나왔을 수 있음
+- 반대로, 팀에이전트 덕분에 without 조건이 상대적으로 나은 설계 패턴을 적용했을 수도 있음
+
+순수하게 "dev-bounce 유무"만 비교하려면, without 조건에서 팀에이전트 지시를 제거한 추가 실험이 필요합니다.
+
+### 8.3 LOC 측정 오류
+
+일부 run에서 서버 LOC가 ~830,000으로 측정됨 (`.venv/` 가상환경 디렉토리 포함). 실제 서버 코드는 수백 줄 수준. 본 보고서에서는 LOC를 주요 메트릭으로 사용하지 않았으며, 앱 LOC(중앙값 with: 1,362 / without: 1,704)만 참고 수치로 제시합니다.
+
+### 8.4 자동화 환경 차이
+
+실제 개발과 다른 점:
+- 사용자 입력을 자동 응답으로 대체 ("네, 진행해주세요")
+- with-dev-bounce: `EnterPlanMode`/`ExitPlanMode` 금지 override 적용 (stream-json 멀티턴 호환 문제)
+- 커밋/푸시 비활성화 (commit_strategy=none)
+- 이러한 override가 dev-bounce의 실제 성능을 과소/과대 평가했을 수 있음
+
+---
+
+## 9. 실험 재현
 
 ### 사전 준비
 
@@ -219,9 +297,18 @@ CLAUDE_TIMEOUT=1800  # 타임아웃 (초)
 INITIAL_COMMIT=f8e094a  # 시작 커밋
 ```
 
+### 결과 브랜치
+
+각 실험 run의 전체 코드는 개별 브랜치에서 확인 가능:
+
+```
+with-dev-bounce-no1 ~ no5
+without-dev-bounce-no1 ~ no5
+```
+
 ---
 
-## 9. 기술 스택
+## 10. 기술 스택
 
 | 영역 | 기술 |
 |------|------|
@@ -231,9 +318,14 @@ INITIAL_COMMIT=f8e094a  # 시작 커밋
 | 실험 자동화 | Python (stream-json) + Bash (worktree 오케스트레이션) |
 | API 검증 | Python AST 기반 Pydantic 스키마 파싱 + Dart HTTP 패턴 매칭 |
 
-## 10. 실행 방법
+## 11. 실행 방법
+
+> main 브랜치에는 실험 코드만 있습니다. 앱 코드는 실험 브랜치(`with-dev-bounce-no*`, `without-dev-bounce-no*`)를 확인하세요.
 
 ```bash
+# 예: with-dev-bounce-no1 브랜치 기준
+git checkout with-dev-bounce-no1
+
 # 서버
 cd server
 python3 -m venv venv && source venv/bin/activate
