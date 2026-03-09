@@ -9,3 +9,8 @@ dist/
 build/
 .DS_Store
 node_modules/
+server/.venv/
+server/.env
+server/__pycache__/
+**/__pycache__/
+*.pyc
