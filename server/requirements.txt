@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+youtube-transcript-api
+google-generativeai
+pydantic
+httpx
+pytest
+pytest-asyncio

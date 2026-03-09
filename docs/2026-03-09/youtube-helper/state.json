@@ -1,0 +1,28 @@
+{
+  "workflow_phase": "development",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "hazy-hatching-bentley",
+  "current_dev_phase": 1,
+  "current_step": 1,
+  "dev_phases": {
+    "1": {
+      "name": "\uc11c\ubc84 \uae30\ucd08",
+      "steps": 5,
+      "completed": 0
+    },
+    "2": {
+      "name": "Flutter \uc571",
+      "steps": 6,
+      "completed": 0
+    }
+  },
+  "verification": {
+    "rounds_passed": 0
+  },
+  "task_dir": "docs/2026-03-09/youtube-helper",
+  "active_file": "docs/2026-03-09/youtube-helper/.active"
+}
