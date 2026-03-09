@@ -1,0 +1,4 @@
+{
+  "builds": [{ "src": "api/transcript.py", "use": "@vercel/python" }],
+  "routes": [{ "src": "/api/transcript", "dest": "api/transcript.py" }]
+}
