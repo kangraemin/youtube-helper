@@ -4,31 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:youtube_helper/features/summarize/application/settings_provider.dart';
 import 'package:youtube_helper/features/summarize/application/history_provider.dart';
 
-class SettingsScreen extends ConsumerStatefulWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late TextEditingController _serverUrlController;
-
-  @override
-  void initState() {
-    super.initState();
-    _serverUrlController =
-        TextEditingController(text: ref.read(serverUrlProvider));
-  }
-
-  @override
-  void dispose() {
-    _serverUrlController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDarkMode = ref.watch(isDarkModeProvider);
     final theme = Theme.of(context);
 
@@ -54,23 +34,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const Divider(),
           ListTile(
-            leading: const Icon(Icons.dns),
-            title: const Text('서버 URL'),
-            subtitle: Text(
-              _serverUrlController.text,
-              style: theme.textTheme.bodySmall,
-            ),
-            onTap: () => _showServerUrlDialog(context),
-          ),
-          const Divider(),
-          ListTile(
             leading: Icon(Icons.delete_outline, color: theme.colorScheme.error),
             title: Text(
               '히스토리 삭제',
               style: TextStyle(color: theme.colorScheme.error),
             ),
-            subtitle: const Text('모든 요약 기록을 삭제합니다'),
-            onTap: () => _showClearHistoryDialog(context),
+            subtitle: const Text('모든 스크립트 기록을 삭제합니다'),
+            onTap: () => _showClearHistoryDialog(context, ref),
           ),
           const Divider(),
           const ListTile(
@@ -83,43 +53,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  void _showServerUrlDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('서버 URL'),
-        content: TextField(
-          controller: _serverUrlController,
-          decoration: const InputDecoration(
-            hintText: 'http://example.com:8000',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () {
-              ref
-                  .read(serverUrlProvider.notifier)
-                  .update(_serverUrlController.text.trim());
-              Navigator.pop(context);
-            },
-            child: const Text('저장'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showClearHistoryDialog(BuildContext context) {
+  void _showClearHistoryDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('히스토리 삭제'),
-        content: const Text('모든 요약 기록이 삭제됩니다. 계속하시겠습니까?'),
+        content: const Text('모든 스크립트 기록이 삭제됩니다. 계속하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

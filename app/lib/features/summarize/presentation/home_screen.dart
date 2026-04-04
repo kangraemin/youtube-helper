@@ -30,10 +30,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  void _summarize() {
+  void _fetchTranscript() {
     final url = _urlController.text.trim();
     if (url.isEmpty) return;
-    ref.read(summaryNotifierProvider.notifier).summarize(url);
+    ref.read(summaryNotifierProvider.notifier).fetchTranscript(url);
   }
 
   @override
@@ -92,10 +92,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               width: double.infinity,
               height: 56,
               child: FilledButton.icon(
-                onPressed: summaryState.isLoading ? null : _summarize,
-                icon: const Icon(Icons.auto_awesome),
+                onPressed: summaryState.isLoading ? null : _fetchTranscript,
+                icon: const Icon(Icons.subtitles),
                 label: const Text(
-                  '요약하기',
+                  '스크립트 가져오기',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 style: FilledButton.styleFrom(
