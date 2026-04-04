@@ -1,0 +1,26 @@
+{
+  "workflow_phase": "development",
+  "mode": "normal",
+  "planning": {
+    "no_question_streak": 0
+  },
+  "plan_approved": true,
+  "team_name": "",
+  "current_dev_phase": 1,
+  "current_step": 1,
+  "dev_phases": {
+    "1": {
+      "name": "transcript-service",
+      "steps": 1
+    },
+    "2": {
+      "name": "provider-ui",
+      "steps": 3
+    }
+  },
+  "verification": {
+    "rounds_passed": 0
+  },
+  "task_dir": ".ai-bouncer-tasks/2026-04-05/transcript-direct-fetch",
+  "active_file": ".ai-bouncer-tasks/2026-04-05/transcript-direct-fetch/.active"
+}
